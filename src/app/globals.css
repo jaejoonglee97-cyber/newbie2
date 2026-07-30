@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/*
+ * 디자인 토큰 - PRD 13.2 기준
+ *
+ * 브랜드 색상은 중부재단 로고에서 추출한 근사값이다.
+ * 공식 CI 가이드를 받으면 아래 값을 교체한다.
+ *
+ * 상태 색상(success/warning/danger)은 브랜드 색상과 혼동되지 않도록
+ * 별도 계열을 쓰고, 흰 배경 위 일반 텍스트 기준 WCAG AA를 만족한다.
+ */
+@theme {
+  --color-navy: #1b1d75;
+  --color-navy-hover: #15175e;
+  --color-brand-blue: #1267aa;
+  --color-brand-blue-hover: #0f5590;
+  --color-teal: #2ca2b0;
+  --color-indigo: #3e4a94;
+
+  --color-canvas: #f5f8fc;
+  --color-surface: #ffffff;
+  --color-ink: #172033;
+  --color-ink-soft: #4a5568;
+  --color-ink-muted: #6b7688;
+  --color-line: #d8e1ec;
+
+  --color-success: #0f7b3f;
+  --color-success-soft: #e6f4ec;
+  --color-warning: #96560a;
+  --color-warning-soft: #fdf1de;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fbeae9;
+
+  --font-sans:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+
+  --radius-card: 14px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  line-height: 1.7;
+}
+
+/* 키보드 사용자에게 초점 위치를 분명히 보여준다. */
+:focus-visible {
+  outline: 3px solid var(--color-brand-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 화면에는 감추고 스크린리더에만 읽히는 텍스트 */
+.sr-only,
+.sr-only-focusable:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
