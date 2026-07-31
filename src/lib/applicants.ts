@@ -132,7 +132,9 @@ export async function createApplication(
     card_share_consent: uploaded && input.cardShareConsent ? "TRUE" : "FALSE",
     business_card_file_id: uploaded?.fileId ?? "",
     business_card_url: uploaded?.fileUrl ?? "",
-    application_status: "검토중",
+    // 별도 승인 절차가 없다. 신청 즉시 참여가 확정되고, 중복·취소 등 예외만
+    // 운영자가 시트에서 '대기' 또는 '불참'으로 수동 변경한다.
+    application_status: "참여확정",
     admin_note: notes.join(" / "),
     updated_at: now,
   });
@@ -190,13 +192,27 @@ export async function listApplicantRecords(): Promise<ApplicantRecord[]> {
         organization: row.organization ?? "",
         position: row.position ?? "",
         phone: row.phone ?? "",
-        applicationStatus: row.application_status || "검토중",
+        applicationStatus: normalizeStatus(row.application_status),
         adminNote: row.admin_note ?? "",
         hasCard: fileId !== "",
         cardImagePath: fileId ? `/api/cards/${encodeURIComponent(fileId)}` : null,
       };
     })
     .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
+}
+
+/**
+ * 저장된 상태값을 화면 표시용으로 정리한다.
+ *
+ * 승인 절차가 없으므로 '검토중'은 의미가 없다. 초기 버전에서 그렇게 저장된
+ * 행이 승인을 기다리는 것처럼 보이지 않도록 '참여확정'으로 표시한다.
+ * 시트 값 자체를 바꾸려면 Apps Script 의 confirmPendingApplicants 를 실행한다.
+ *
+ * '대기'와 '불참'은 운영자가 의도적으로 지정한 값이므로 그대로 둔다.
+ */
+function normalizeStatus(stored: string | undefined): string {
+  const value = (stored ?? "").trim();
+  return value === "" || value === "검토중" ? "참여확정" : value;
 }
 
 /**

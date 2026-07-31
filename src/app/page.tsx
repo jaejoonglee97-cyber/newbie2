@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SiteNav } from "@/components/site-nav";
+import { getSessionRole } from "@/lib/auth";
 import { formatDate, formatDateShort, formatDateTime, formatWon } from "@/lib/format";
 import { isMockMode } from "@/lib/repo";
 import { getRecruitmentStatus, getSettings } from "@/lib/settings";
@@ -12,7 +14,7 @@ export const dynamic = "force-dynamic";
 const PROCESS_STEPS = [
   { title: "주제 설정", detail: "회기별로 모임 주제를 자율적으로 정합니다." },
   { title: "활동 신청", detail: "주제·일시·예산·참여 예정자를 담아 신청합니다." },
-  { title: "활동 진행", detail: "승인된 일정에 따라 모임을 진행합니다." },
+  { title: "활동 진행", detail: "정해진 일정에 따라 모임을 진행합니다." },
   { title: "활동 기록 제출", detail: "내용·출석·예산·사진을 활동일지로 남깁니다." },
 ];
 
@@ -24,7 +26,7 @@ const NOTICES = [
 ];
 
 export default async function RecruitmentPage() {
-  const settings = await getSettings();
+  const [settings, role] = await Promise.all([getSettings(), getSessionRole()]);
   const status = getRecruitmentStatus(settings);
 
   const cards = [
@@ -59,6 +61,7 @@ export default async function RecruitmentPage() {
   return (
     <>
       <SiteHeader settings={settings} status={status} />
+      <SiteNav role={role} current="home" />
 
       <main id="main" className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
         {isMockMode() ? <MockNotice /> : null}
@@ -157,6 +160,8 @@ export default async function RecruitmentPage() {
           statusLabel={status.label}
           recruitmentStartAt={settings.recruitmentStartAt}
         />
+
+        <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
       </main>
 
       <SiteFooter settings={settings} />
@@ -200,6 +205,64 @@ function ApplyCallToAction({
           : "모집 일정이 확정되면 이 페이지에 안내합니다."}
       </p>
       <p className="mt-4 text-sm text-ink-muted">문의는 하단 연락처로 부탁드립니다.</p>
+    </section>
+  );
+}
+
+/**
+ * 명함집·활동기록으로 가는 안내.
+ *
+ * 메인의 주요 행동은 신청이므로 그 아래에 둔다.
+ * 비밀번호는 화면에 적지 않는다. 기장·부기장이 채팅방으로 공유한다.
+ */
+function MemberAreaGuide({
+  role,
+  teamChatName,
+}: {
+  role: "member" | "admin" | null;
+  teamChatName: string;
+}) {
+  return (
+    <section aria-labelledby="member-area" className="mt-6">
+      <div className="rounded-[14px] border border-line bg-surface px-6 py-7 sm:px-8">
+        <h2 id="member-area" className="text-lg font-bold text-navy">
+          이미 신청하셨나요?
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+          {role
+            ? "로그인된 상태입니다. 아래에서 바로 이동하실 수 있습니다."
+            : `동문회 공통 비밀번호를 입력하면 명함집과 활동 기록을 보실 수 있습니다. 비밀번호는 ${teamChatName}에서 안내드립니다.`}
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/cards"
+            className="flex flex-col gap-1 rounded-lg border border-line px-5 py-4 transition-colors hover:border-brand-blue/60 hover:bg-canvas"
+          >
+            <span className="font-bold text-ink">명함집</span>
+            <span className="text-xs leading-relaxed text-ink-muted">
+              교육에서 명함을 나누지 못한 동문의 명함을 모았습니다.
+            </span>
+          </Link>
+
+          <Link
+            href="/activities"
+            className="flex flex-col gap-1 rounded-lg border border-line px-5 py-4 transition-colors hover:border-brand-blue/60 hover:bg-canvas"
+          >
+            <span className="font-bold text-ink">활동 기록</span>
+            <span className="text-xs leading-relaxed text-ink-muted">
+              회기별 모임 내용, 예산 사용 내역, 사진을 확인합니다.
+            </span>
+          </Link>
+        </div>
+
+        {role ? null : (
+          <p className="mt-4 text-sm text-ink-muted">
+            운영자는 같은 화면에서 운영자 비밀번호를 입력하시면 신청자 명단까지 보실 수
+            있습니다.
+          </p>
+        )}
+      </div>
     </section>
   );
 }

@@ -103,7 +103,8 @@ function applicant(
     card_share_consent: withCard ? "TRUE" : "FALSE",
     business_card_file_id: withCard ? `mock-${applicationId}` : "",
     business_card_url: "",
-    application_status: "검토중",
+    // 승인 절차가 없으므로 신청 = 참여 확정이다. 실제 API 기본값과 맞춘다.
+    application_status: "참여확정",
     admin_note: "더미 데이터",
     updated_at: now,
   };

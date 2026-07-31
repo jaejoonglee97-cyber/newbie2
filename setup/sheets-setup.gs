@@ -515,7 +515,8 @@ function seedDummyData() {
       'FALSE',
       '',
       '',
-      confirmed ? '참여확정' : '검토중',
+      // 승인 절차가 없으므로 신청 = 참여 확정이다.
+      '참여확정',
       '더미 데이터',
       now,
     ]);
@@ -567,6 +568,59 @@ function clearDummyData() {
   }
 
   return '[초기화] ' + (cleared.length ? cleared.join(', ') : '지울 데이터 없음');
+}
+
+// ---------------------------------------------------------------------------
+// 상태 정리
+// ---------------------------------------------------------------------------
+
+/**
+ * 이미 접수된 신청의 '검토중' 상태를 '참여확정'으로 일괄 변경한다.
+ *
+ * 동문회에는 승인 절차가 없다. 신청하면 그대로 참여가 확정된다.
+ * 초기 버전에서 기본값을 '검토중'으로 저장했기 때문에, 그때 접수된 행만
+ * 한 번 정리해 주면 된다. 이후 접수분은 처음부터 '참여확정'으로 저장된다.
+ *
+ * '대기'와 '불참'은 운영자가 의도적으로 지정한 값이므로 건드리지 않는다.
+ */
+function confirmPendingApplicants() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('applicants');
+
+  if (!sheet) {
+    throw new Error('applicants 시트가 없습니다. setupAll 을 먼저 실행하세요.');
+  }
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return '[상태 정리] 접수된 신청이 없습니다.';
+  }
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var statusColumn = headers.indexOf('application_status') + 1;
+  var updatedColumn = headers.indexOf('updated_at') + 1;
+
+  if (statusColumn === 0) {
+    throw new Error('application_status 컬럼을 찾지 못했습니다.');
+  }
+
+  var statuses = sheet.getRange(2, statusColumn, lastRow - 1, 1).getValues();
+  var now = nowIso();
+  var changed = 0;
+
+  for (var i = 0; i < statuses.length; i++) {
+    if (String(statuses[i][0]).trim() !== '검토중') continue;
+
+    sheet.getRange(i + 2, statusColumn).setValue('참여확정');
+    if (updatedColumn > 0) {
+      sheet.getRange(i + 2, updatedColumn).setValue(now);
+    }
+    changed += 1;
+  }
+
+  var message = '[상태 정리] 검토중 → 참여확정 ' + changed + '건 변경';
+  Logger.log(message);
+  return message;
 }
 
 // ---------------------------------------------------------------------------

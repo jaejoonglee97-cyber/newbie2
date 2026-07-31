@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ApplyForm } from "@/components/apply-form";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SiteNav } from "@/components/site-nav";
+import { getSessionRole } from "@/lib/auth";
 import { isCardUploadEnabled } from "@/lib/config";
 import { formatDateTime } from "@/lib/format";
 import { isMockMode } from "@/lib/repo";
@@ -16,12 +18,13 @@ export const metadata = {
 };
 
 export default async function ApplyPage() {
-  const settings = await getSettings();
+  const [settings, role] = await Promise.all([getSettings(), getSessionRole()]);
   const status = getRecruitmentStatus(settings);
 
   return (
     <>
       <SiteHeader settings={settings} status={status} />
+      <SiteNav role={role} current="apply" />
 
       <main id="main" className="mx-auto max-w-2xl px-5 py-10 sm:px-8 sm:py-12">
         <h1 className="text-2xl font-bold text-navy sm:text-3xl">참석 희망 신청</h1>
@@ -48,6 +51,7 @@ export default async function ApplyPage() {
               viceLeaderName={settings.viceLeaderName}
               teamChatName={settings.teamChatName}
               cardUploadEnabled={isCardUploadEnabled()}
+              recruitmentEndAt={settings.recruitmentEndAt}
             />
           ) : (
             <ClosedNotice

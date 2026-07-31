@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { ActivityLogForm } from "@/components/activity-log-form";
-import { MemberNav } from "@/components/member-nav";
+import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getBudgetSummary, listActivities, listMemberOptions } from "@/lib/activity-logs";
@@ -36,7 +36,7 @@ export default async function NewActivityPage() {
   return (
     <>
       <SiteHeader settings={settings} />
-      <MemberNav role={role} current="activities" />
+      <SiteNav role={role} current="activities" />
 
       <main id="main" className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-12">
         <h1 className="text-2xl font-bold text-navy sm:text-3xl">활동일지 작성</h1>

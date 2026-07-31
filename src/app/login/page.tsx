@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SiteNav } from "@/components/site-nav";
 import { getSessionRole } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 
@@ -30,11 +31,13 @@ export default async function LoginPage({
   return (
     <>
       <SiteHeader settings={settings} />
+      <SiteNav role={null} />
 
       <main id="main" className="mx-auto max-w-md px-5 py-12 sm:px-8">
         <h1 className="text-2xl font-bold text-navy">동문회 로그인</h1>
         <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          명함집과 활동 기록을 보려면 동문회 공통 비밀번호가 필요합니다.
+          명함집과 활동 기록을 보려면 동문회 공통 비밀번호가 필요합니다. 운영자 비밀번호를
+          입력하시면 신청자 명단까지 열람하실 수 있습니다.
         </p>
 
         <div className="mt-8 rounded-[14px] border border-line bg-surface p-6">

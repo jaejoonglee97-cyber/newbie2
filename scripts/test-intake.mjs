@@ -15,46 +15,78 @@
 const base = process.argv[2] ?? "http://localhost:3000";
 const url = `${base}/api/applications`;
 
+// 이메일과 참석 의사는 수집하지 않는다. 직책이 필수다.
 const valid = {
   name: "가나다",
   organization: "테스트종합사회복지관",
+  position: "사회복지사",
   phone: "01012345678",
-  email: "Dummy.One@Example.Invalid",
-  attendanceIntent: "참석희망",
   privacyConsent: true,
 };
 
+/** 명함 첨부 검증용 1x1 JPEG */
+const TINY_JPEG =
+  "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwcJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPDs0NDT/wAALCAABAAEBAREA/8QAFAABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJQA/9k=";
+
 const cases = [
   {
-    label: "정상 접수 · 전화번호 정규화와 이메일 소문자화 확인",
+    label: "정상 접수 · 전화번호 정규화, 상태는 참여확정",
     payload: valid,
     expect: 201,
+    check: (body) =>
+      body.receipt?.possibleDuplicate === false ? null : "중복이 아닌데 중복으로 표시됨",
   },
   {
-    label: "같은 이메일 재접수 · 중복 감지 표시",
-    payload: { ...valid, phone: "01087654321" },
+    label: "같은 연락처 재접수 · 중복 감지 표시",
+    payload: { ...valid, name: "라마바" },
     expect: 201,
+    check: (body) =>
+      body.receipt?.possibleDuplicate === true ? null : "같은 연락처인데 중복 표시가 없음",
   },
   {
     label: "전 항목 검증 실패",
     payload: {
       name: "김",
       organization: "",
+      position: "",
       phone: "123",
-      email: "not-an-email",
-      attendanceIntent: "",
       privacyConsent: false,
     },
     expect: 422,
   },
   {
-    label: "개인정보 동의 누락",
-    payload: { ...valid, email: "dummy.two@example.invalid", privacyConsent: false },
+    label: "직책 누락",
+    payload: { ...valid, phone: "01011112222", position: "" },
     expect: 422,
   },
   {
+    label: "개인정보 동의 누락",
+    payload: { ...valid, phone: "01022223333", privacyConsent: false },
+    expect: 422,
+  },
+  {
+    label: "명함 첨부했으나 공개 동의 없음",
+    payload: {
+      ...valid,
+      phone: "01033334444",
+      businessCard: { mimeType: "image/jpeg", dataBase64: TINY_JPEG },
+    },
+    expect: 422,
+  },
+  {
+    label: "명함 첨부 + 공개 동의",
+    payload: {
+      ...valid,
+      phone: "01044445555",
+      cardShareConsent: true,
+      businessCard: { mimeType: "image/jpeg", dataBase64: TINY_JPEG },
+    },
+    expect: 201,
+    check: (body) => (body.receipt?.cardUploaded === true ? null : "명함이 저장되지 않음"),
+  },
+  {
     label: "자동 프로그램 차단칸 채워짐",
-    payload: { ...valid, website: "http://spam.example" },
+    payload: { ...valid, phone: "01055556666", website: "http://spam.example" },
     expect: 400,
   },
 ];
@@ -68,13 +100,18 @@ for (const testCase of cases) {
     body: JSON.stringify(testCase.payload),
   });
   const body = await response.json();
-  const ok = response.status === testCase.expect;
+  const statusOk = response.status === testCase.expect;
+  const checkError = statusOk && testCase.check ? testCase.check(body) : null;
+  const ok = statusOk && !checkError;
 
   if (!ok) failed += 1;
 
   console.log(`${ok ? "OK  " : "실패"} [${response.status}] ${testCase.label}`);
-  if (!ok) {
+  if (!statusOk) {
     console.log(`     기대한 상태코드: ${testCase.expect}`);
+  }
+  if (checkError) {
+    console.log(`     ${checkError}`);
   }
   console.log(`     ${JSON.stringify(body.receipt ?? body.errors ?? body)}`);
   console.log();

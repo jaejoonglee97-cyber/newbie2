@@ -13,6 +13,8 @@ type Props = {
   viceLeaderName: string;
   teamChatName: string;
   cardUploadEnabled: boolean;
+  /** 모집 마감 일시. 접수 완료 안내에서 "이후 초대" 문구에 쓴다. */
+  recruitmentEndAt: string;
 };
 
 type FormState = {
@@ -39,6 +41,7 @@ export function ApplyForm({
   viceLeaderName,
   teamChatName,
   cardUploadEnabled,
+  recruitmentEndAt,
 }: Props) {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [card, setCard] = useState<SelectedCard | null>(null);
@@ -59,6 +62,7 @@ export function ApplyForm({
         leaderName={leaderName}
         viceLeaderName={viceLeaderName}
         teamChatName={teamChatName}
+        recruitmentEndAt={recruitmentEndAt}
       />
     );
   }
@@ -324,17 +328,25 @@ export function ApplyForm({
   );
 }
 
-/** 접수 완료 안내. (REC-05) */
+/**
+ * 접수 완료 안내. (REC-05)
+ *
+ * 별도 승인 절차가 없다. 신청하면 그대로 참여가 확정되고, 모집 기간이 끝나면
+ * 전원 팀 채팅방으로 초대된다. "검토 후 결과 안내" 같은, 실제로 없는 절차를
+ * 있는 것처럼 안내하지 않는다.
+ */
 function Receipt({
   receipt,
   leaderName,
   viceLeaderName,
   teamChatName,
+  recruitmentEndAt,
 }: {
   receipt: ApplicationReceipt;
   leaderName: string;
   viceLeaderName: string;
   teamChatName: string;
+  recruitmentEndAt: string;
 }) {
   const officers = [leaderName, viceLeaderName].filter(Boolean).join("·");
 
@@ -367,7 +379,7 @@ function Receipt({
         </div>
         <div className="flex flex-col gap-1 py-4 sm:flex-row sm:gap-6">
           <dt className="w-24 shrink-0 text-sm font-medium text-ink-muted">처리 상태</dt>
-          <dd className="text-sm text-ink">검토 중</dd>
+          <dd className="text-sm text-ink">참여 확정</dd>
         </div>
       </dl>
 
@@ -389,8 +401,12 @@ function Receipt({
         <h3 className="text-sm font-bold text-ink">다음 안내</h3>
         <ul className="mt-3 space-y-2 text-sm leading-relaxed text-ink-soft">
           <li>
-            검토 후 참여 확정 결과와 함께 {teamChatName} 초대를 보내드립니다. 동문회 소통은
-            채팅방에서 진행합니다.
+            {recruitmentEndAt ? (
+              <>{formatDateTime(recruitmentEndAt)} 모집 종료 후</>
+            ) : (
+              "모집 종료 후"
+            )}{" "}
+            {teamChatName}으로 초대해 드립니다. 동문회 소통은 채팅방에서 진행합니다.
           </li>
           <li>
             신청 내용을 수정하거나 취소하시려면 접수번호와 함께{" "}

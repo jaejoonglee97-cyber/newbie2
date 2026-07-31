@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { MemberNav } from "@/components/member-nav";
+import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { listApplicantRecords } from "@/lib/applicants";
@@ -30,14 +30,18 @@ export default async function AdminPage() {
   const [settings, records] = await Promise.all([getSettings(), listApplicantRecords()]);
   const status = getRecruitmentStatus(settings);
 
-  const confirmed = records.filter((record) => record.applicationStatus === "참여확정").length;
-  const reviewing = records.filter((record) => record.applicationStatus === "검토중").length;
+  // 별도 승인 절차가 없다. 신청하면 그대로 참여 확정이므로, 운영자가 직접
+  // '불참'이나 '대기'로 바꿔 둔 사람만 빼고 나머지 전부를 확정 인원으로 센다.
+  const excluded = records.filter(
+    (record) => record.applicationStatus === "불참" || record.applicationStatus === "대기",
+  ).length;
+  const confirmed = records.length - excluded;
   const cards = records.filter((record) => record.hasCard).length;
 
   return (
     <>
       <SiteHeader settings={settings} status={status} />
-      <MemberNav role={role} current="admin" />
+      <SiteNav role={role} current="admin" />
 
       <main id="main" className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-12">
         <h1 className="text-2xl font-bold text-navy sm:text-3xl">신청자 명단</h1>
@@ -56,7 +60,6 @@ export default async function AdminPage() {
 
         <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="전체 신청" value={`${records.length}명`} />
-          <Stat label="검토 중" value={`${reviewing}명`} />
           <Stat
             label="참여 확정"
             value={`${confirmed}명`}
@@ -67,6 +70,7 @@ export default async function AdminPage() {
             }
             warn={confirmed < settings.minimumParticipants}
           />
+          <Stat label="불참·대기" value={`${excluded}명`} />
           <Stat label="명함 등록" value={`${cards}건`} />
         </dl>
 
@@ -99,12 +103,21 @@ export default async function AdminPage() {
           </table>
         </div>
 
-        <p className="mt-6 text-sm leading-relaxed text-ink-muted">
-          상태 변경과 명단 내보내기는 아직 이 화면에서 할 수 없습니다. 지금은 스프레드시트의{" "}
-          <code className="rounded bg-canvas px-1.5 py-0.5 text-xs">applicants</code> 시트에서
-          <code className="rounded bg-canvas px-1.5 py-0.5 text-xs">application_status</code> 를
-          직접 바꿔 주세요.
-        </p>
+        <div className="mt-6 space-y-2 text-sm leading-relaxed text-ink-muted">
+          <p>
+            <strong className="font-semibold text-ink-soft">승인 절차는 없습니다.</strong> 신청이
+            들어오면 그대로 참여 확정이며, 모집이 끝나면 전원 {settings.teamChatName}으로
+            초대하시면 됩니다.
+          </p>
+          <p>
+            중도 취소나 보류가 생긴 경우에만 스프레드시트{" "}
+            <code className="rounded bg-canvas px-1.5 py-0.5 text-xs">applicants</code> 시트의{" "}
+            <code className="rounded bg-canvas px-1.5 py-0.5 text-xs">application_status</code> 를
+            <code className="rounded bg-canvas px-1.5 py-0.5 text-xs">불참</code> 또는{" "}
+            <code className="rounded bg-canvas px-1.5 py-0.5 text-xs">대기</code> 로 바꿔 주세요.
+            명단 내보내기는 아직 이 화면에서 지원하지 않습니다.
+          </p>
+        </div>
       </main>
 
       <SiteFooter settings={settings} />

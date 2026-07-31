@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { MemberNav } from "@/components/member-nav";
+import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getActivityDetail } from "@/lib/activity-logs";
@@ -37,7 +37,7 @@ export default async function ActivityDetailPage({
   return (
     <>
       <SiteHeader settings={settings} />
-      <MemberNav role={role} current="activities" />
+      <SiteNav role={role} current="activities" />
 
       <main id="main" className="mx-auto max-w-3xl px-5 py-10 sm:px-8 sm:py-12">
         <p className="text-sm font-semibold text-teal">
