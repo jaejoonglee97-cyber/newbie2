@@ -43,6 +43,10 @@ export type ApplicationInput = {
   organization: string;
   position: string;
   phone: string;
+  /** 명함집에 함께 보여줄 한 줄 소개. 선택 */
+  introduction: string;
+  /** 동문회에 기대하는 점. 명함집에 공개된다. */
+  expectation: string;
   privacyConsent: boolean;
   /** 명함을 첨부한 경우에만 필요한 공개 동의 */
   cardShareConsent: boolean;
@@ -75,6 +79,8 @@ export type CardEntry = {
   name: string;
   organization: string;
   position: string;
+  introduction: string;
+  expectation: string;
   /** 명함 이미지가 있는 경우 프록시 경로 */
   cardImagePath: string | null;
 };
@@ -87,6 +93,8 @@ export type ApplicantRecord = {
   organization: string;
   position: string;
   phone: string;
+  introduction: string;
+  expectation: string;
   applicationStatus: string;
   adminNote: string;
   hasCard: boolean;

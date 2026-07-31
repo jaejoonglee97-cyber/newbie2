@@ -53,12 +53,19 @@ export function SiteFooter({ settings }: { settings: ProgramSettings }) {
         <section>
           <h2 className="text-sm font-bold text-ink">개인정보 처리 안내</h2>
           <ul className="mt-3 space-y-1.5 text-sm leading-relaxed text-ink-soft">
-            <li>수집 항목: 성명, 소속기관, 직책, 휴대전화</li>
-            <li>선택 항목: 명함 이미지</li>
-            <li>이용 목적: 동문회 참여자 확정, 활동 안내 및 연락, 동문 명함집 제작</li>
+            <li>수집 항목: 성명, 소속기관, 직책, 휴대전화, 동문회에 기대하는 점</li>
+            <li>선택 항목: 한 줄 소개, 명함 이미지</li>
+            <li>
+              이용 목적: 동문회 참여자 확정, 활동 안내 및 연락, 회기 주제 기획, 동문 명함집
+              제작
+            </li>
             <li>보유 기간: {settings.privacyRetentionPeriod}</li>
             <li>동의를 거부하실 수 있으나, 이 경우 참여 신청이 어렵습니다.</li>
             <li>휴대전화 번호는 운영자만 확인하며 다른 참여자에게 공개하지 않습니다.</li>
+            <li>
+              성명·소속기관·직책·한 줄 소개·기대하는 점은 로그인한 동문회 참여자에게
+              공개됩니다.
+            </li>
             <li>명함 이미지는 동의하신 경우에만 동문회 참여자에게 공개됩니다.</li>
           </ul>
         </section>

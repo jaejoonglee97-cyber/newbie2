@@ -62,6 +62,19 @@ export function validateApplication(raw: unknown, hasCard: boolean): ValidationR
     phone = formatPhone(phoneDigits);
   }
 
+  // 한 줄 소개는 선택이다. 쓰지 않아도 명함집에 이름·소속·직책은 나온다.
+  const introduction = str(input.introduction);
+  if (introduction.length > 80) {
+    errors.introduction = "한 줄 소개는 80자 이내로 써 주세요.";
+  }
+
+  const expectation = str(input.expectation);
+  if (expectation.length < 5) {
+    errors.expectation = "동문회에 기대하는 점을 한 문장 이상 써 주세요.";
+  } else if (expectation.length > 500) {
+    errors.expectation = "기대하는 점은 500자 이내로 써 주세요.";
+  }
+
   const privacyConsent = isTrue(input.privacyConsent);
   if (!privacyConsent) {
     errors.privacyConsent = "개인정보 수집·이용에 동의하셔야 신청할 수 있습니다.";
@@ -84,6 +97,8 @@ export function validateApplication(raw: unknown, hasCard: boolean): ValidationR
       organization,
       position,
       phone,
+      introduction,
+      expectation,
       privacyConsent,
       // 명함을 첨부하지 않았으면 공개 동의는 기록하지 않는다.
       cardShareConsent: hasCard ? cardShareConsent : false,
@@ -125,6 +140,8 @@ export async function createApplication(
     organization: input.organization,
     position: input.position,
     phone: input.phone,
+    introduction: input.introduction,
+    expectation: input.expectation,
     // 폼에서는 묻지 않는다. 신청 자체가 참석 희망 표명이다.
     attendance_intent: "참석희망",
     privacy_consent: "TRUE",
@@ -170,6 +187,8 @@ export async function listCardEntries(): Promise<CardEntry[]> {
         name: row.name ?? "",
         organization: row.organization ?? "",
         position: row.position ?? "",
+        introduction: row.introduction ?? "",
+        expectation: row.expectation ?? "",
         // 공개 동의가 없으면 이미지를 내보내지 않는다.
         cardImagePath: fileId && shared ? `/api/cards/${encodeURIComponent(fileId)}` : null,
       };
@@ -192,6 +211,8 @@ export async function listApplicantRecords(): Promise<ApplicantRecord[]> {
         organization: row.organization ?? "",
         position: row.position ?? "",
         phone: row.phone ?? "",
+        introduction: row.introduction ?? "",
+        expectation: row.expectation ?? "",
         applicationStatus: normalizeStatus(row.application_status),
         adminNote: row.admin_note ?? "",
         hasCard: fileId !== "",

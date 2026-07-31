@@ -22,6 +22,8 @@ type FormState = {
   organization: string;
   position: string;
   phone: string;
+  introduction: string;
+  expectation: string;
   privacyConsent: boolean;
   cardShareConsent: boolean;
 };
@@ -31,9 +33,14 @@ const EMPTY: FormState = {
   organization: "",
   position: "",
   phone: "",
+  introduction: "",
+  expectation: "",
   privacyConsent: false,
   cardShareConsent: false,
 };
+
+const EXPECTATION_MAX = 500;
+const INTRODUCTION_MAX = 80;
 
 export function ApplyForm({
   retentionPeriod,
@@ -215,6 +222,50 @@ export function ApplyForm({
         }
       />
 
+      <Field
+        id={`${formId}-introduction`}
+        label="한 줄 소개"
+        optional
+        error={errors.introduction}
+        hint="명함집에서 이름 옆에 함께 보입니다. 비워 두셔도 됩니다."
+        input={
+          <>
+            <input
+              id={`${formId}-introduction`}
+              type="text"
+              maxLength={INTRODUCTION_MAX}
+              value={form.introduction}
+              onChange={(event) => update("introduction", event.target.value)}
+              className={inputClass(errors.introduction)}
+              placeholder="예: 아동 사례관리 2년차, 기록 잘하는 법을 고민합니다."
+            />
+            <CharCount current={form.introduction.length} max={INTRODUCTION_MAX} />
+          </>
+        }
+      />
+
+      <Field
+        id={`${formId}-expectation`}
+        label="동문회에 기대하는 점"
+        required
+        error={errors.expectation}
+        hint="어떤 활동을 바라시는지 알려 주세요. 회기 주제를 정할 때 참고하고, 명함집에서 다른 참여자에게도 보입니다."
+        input={
+          <>
+            <textarea
+              id={`${formId}-expectation`}
+              rows={4}
+              maxLength={EXPECTATION_MAX}
+              value={form.expectation}
+              onChange={(event) => update("expectation", event.target.value)}
+              className={`${inputClass(errors.expectation)} resize-y`}
+              placeholder="예: 혼자 판단하기 어려웠던 사례를 동료들과 나누며 시야를 넓히고 싶습니다."
+            />
+            <CharCount current={form.expectation.length} max={EXPECTATION_MAX} />
+          </>
+        }
+      />
+
       {cardUploadEnabled ? (
         <CardField
           value={card}
@@ -229,11 +280,18 @@ export function ApplyForm({
           개인정보 수집·이용 동의 <RequiredMark />
         </h2>
         <dl className="mt-3 space-y-2 text-sm leading-relaxed text-ink-soft">
-          <Row term="수집 항목" desc="성명, 소속기관, 직책, 휴대전화" />
-          <Row term="선택 항목" desc="명함 이미지" />
+          <Row
+            term="수집 항목"
+            desc="성명, 소속기관, 직책, 휴대전화, 동문회에 기대하는 점"
+          />
+          <Row term="선택 항목" desc="한 줄 소개, 명함 이미지" />
           <Row
             term="이용 목적"
-            desc="동문회 참여자 확정, 활동 일정 안내 및 연락, 동문 명함집 제작"
+            desc="동문회 참여자 확정, 활동 일정 안내 및 연락, 회기 주제 기획, 동문 명함집 제작"
+          />
+          <Row
+            term="공개 범위"
+            desc="성명·소속기관·직책·한 줄 소개·기대하는 점은 로그인한 동문회 참여자에게 공개됩니다. 휴대전화 번호는 운영자만 확인합니다."
           />
           <Row term="보유 기간" desc={retentionPeriod} />
           <Row
@@ -435,6 +493,7 @@ function Field({
   id,
   label,
   required,
+  optional,
   hint,
   error,
   input,
@@ -442,6 +501,7 @@ function Field({
   id: string;
   label: string;
   required?: boolean;
+  optional?: boolean;
   hint?: string;
   error?: string;
   input: ReactNode;
@@ -450,6 +510,7 @@ function Field({
     <div>
       <label htmlFor={id} className="text-sm font-bold text-ink">
         {label} {required ? <RequiredMark /> : null}
+        {optional ? <span className="font-medium text-ink-muted">(선택)</span> : null}
       </label>
       {hint ? <p className="mt-1 text-xs leading-relaxed text-ink-muted">{hint}</p> : null}
       <div className="mt-2">{input}</div>
@@ -459,6 +520,20 @@ function Field({
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** 글자 수 표시. 상한에 가까워지면 색으로도 알린다. */
+function CharCount({ current, max }: { current: number; max: number }) {
+  const near = current >= max * 0.9;
+
+  return (
+    <p
+      aria-hidden="true"
+      className={`mt-1 text-right text-xs ${near ? "font-semibold text-warning" : "text-ink-muted"}`}
+    >
+      {current} / {max}자
+    </p>
   );
 }
 

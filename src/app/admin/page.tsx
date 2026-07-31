@@ -118,10 +118,63 @@ export default async function AdminPage() {
             명단 내보내기는 아직 이 화면에서 지원하지 않습니다.
           </p>
         </div>
+
+        <ExpectationDigest records={records} />
       </main>
 
       <SiteFooter settings={settings} />
     </>
+  );
+}
+
+/**
+ * 신청자가 쓴 기대하는 점을 모아 본다.
+ *
+ * 표에 컬럼으로 넣으면 긴 글이 잘려 읽을 수 없다. 회기 주제를 정할 때
+ * 한 번에 훑어보는 용도이므로 표 아래에 따로 둔다.
+ */
+function ExpectationDigest({ records }: { records: ApplicantRecord[] }) {
+  const written = records.filter((record) => record.expectation.trim() !== "");
+
+  if (written.length === 0) {
+    return null;
+  }
+
+  return (
+    <section aria-labelledby="expectations" className="mt-12">
+      <h2 id="expectations" className="text-xl font-bold text-navy sm:text-2xl">
+        동문회에 기대하는 점
+      </h2>
+      <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+        신청자 {records.length}명 중 {written.length}명이 작성했습니다. 회기 주제를 정할 때
+        참고하세요.
+      </p>
+
+      <ul className="mt-5 space-y-4">
+        {written.map((record) => (
+          <li
+            key={record.applicationId}
+            className="rounded-[14px] border border-line bg-surface p-5"
+          >
+            <p className="text-sm font-bold text-ink">
+              {record.name}
+              <span className="ml-2 font-medium text-ink-muted">
+                {record.organization}
+                {record.position ? ` · ${record.position}` : ""}
+              </span>
+            </p>
+            {record.introduction ? (
+              <p className="mt-2 text-sm italic leading-relaxed text-ink-muted">
+                {record.introduction}
+              </p>
+            ) : null}
+            <p className="mt-3 whitespace-pre-line leading-relaxed text-ink-soft">
+              {record.expectation}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

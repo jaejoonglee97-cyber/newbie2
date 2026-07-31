@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { CardGallery } from "@/components/card-gallery";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -7,7 +8,6 @@ import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
-import type { CardEntry } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -63,11 +63,7 @@ export default async function CardsPage() {
             아직 등록된 참여자가 없습니다.
           </p>
         ) : (
-          <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {entries.map((entry) => (
-              <CardItem key={entry.applicationId} entry={entry} />
-            ))}
-          </ul>
+          <CardGallery entries={entries} />
         )}
 
         {settings.teamChatUrl ? (
@@ -90,34 +86,5 @@ export default async function CardsPage() {
 
       <SiteFooter settings={settings} />
     </>
-  );
-}
-
-function CardItem({ entry }: { entry: CardEntry }) {
-  return (
-    <li className="overflow-hidden rounded-[14px] border border-line bg-surface">
-      {entry.cardImagePath ? (
-        <img
-          src={entry.cardImagePath}
-          alt={`${entry.name} 명함`}
-          width={500}
-          height={300}
-          className="aspect-[5/3] w-full bg-canvas object-contain"
-          loading="lazy"
-        />
-      ) : (
-        <div className="flex aspect-[5/3] w-full items-center justify-center bg-canvas">
-          <span className="text-sm text-ink-muted">명함 미등록</span>
-        </div>
-      )}
-
-      <div className="border-t border-line p-4">
-        <p className="font-bold text-ink">{entry.name}</p>
-        <p className="mt-1 text-sm text-ink-soft">{entry.organization}</p>
-        {entry.position ? (
-          <p className="mt-0.5 text-sm text-ink-muted">{entry.position}</p>
-        ) : null}
-      </div>
-    </li>
   );
 }

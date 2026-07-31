@@ -21,6 +21,8 @@ const valid = {
   organization: "테스트종합사회복지관",
   position: "사회복지사",
   phone: "01012345678",
+  introduction: "아동 사례관리 2년차입니다.",
+  expectation: "동료들과 사례를 나누며 시야를 넓히고 싶습니다.",
   privacyConsent: true,
 };
 
@@ -50,6 +52,7 @@ const cases = [
       organization: "",
       position: "",
       phone: "123",
+      expectation: "",
       privacyConsent: false,
     },
     expect: 422,
@@ -58,6 +61,16 @@ const cases = [
     label: "직책 누락",
     payload: { ...valid, phone: "01011112222", position: "" },
     expect: 422,
+  },
+  {
+    label: "기대하는 점 누락",
+    payload: { ...valid, phone: "01066667777", expectation: "" },
+    expect: 422,
+  },
+  {
+    label: "한 줄 소개 없이 접수 (선택 항목)",
+    payload: { ...valid, phone: "01077778888", introduction: "" },
+    expect: 201,
   },
   {
     label: "개인정보 동의 누락",

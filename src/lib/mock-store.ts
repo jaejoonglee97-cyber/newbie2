@@ -51,9 +51,19 @@ function seedStore(): Store {
   ];
 
   const applicants: SheetRow[] = [
-    applicant("APP-20260730-0001", "가나다", "테스트종합사회복지관", "사회복지사", "0001", true),
-    applicant("APP-20260730-0002", "라마바", "샘플노인복지관", "선임사회복지사", "0002", true),
-    applicant("APP-20260730-0003", "사아자", "예시장애인복지관", "사례관리자", "0003", false),
+    applicant("APP-20260730-0001", "가나다", "테스트종합사회복지관", "사회복지사", "0001", true, {
+      introduction: "아동 사례관리 2년차, 기록 잘하는 법을 늘 고민합니다.",
+      expectation: "혼자 판단하기 어려웠던 사례를 동료들과 나누며 시야를 넓히고 싶습니다.",
+    }),
+    applicant("APP-20260730-0002", "라마바", "샘플노인복지관", "선임사회복지사", "0002", true, {
+      introduction: "어르신 프로그램 기획을 맡고 있습니다.",
+      expectation:
+        "다른 기관은 어떻게 운영하는지 직접 보고 배우고 싶습니다. 기관 방문 회기를 기대합니다.",
+    }),
+    applicant("APP-20260730-0003", "사아자", "예시장애인복지관", "사례관리자", "0003", false, {
+      introduction: "",
+      expectation: "같은 시기에 현장에 들어온 동료들과 계속 이어지고 싶어 신청했습니다.",
+    }),
   ];
 
   return {
@@ -86,6 +96,7 @@ function applicant(
   position: string,
   phoneSuffix: string,
   withCard: boolean,
+  text: { introduction: string; expectation: string },
 ): SheetRow {
   const now = "2026-07-30T10:00:00+09:00";
 
@@ -97,6 +108,8 @@ function applicant(
     organization,
     position,
     phone: `010-0000-${phoneSuffix}`,
+    introduction: text.introduction,
+    expectation: text.expectation,
     attendance_intent: "참석희망",
     privacy_consent: "TRUE",
     privacy_consent_at: now,
