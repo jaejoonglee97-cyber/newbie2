@@ -1,14 +1,16 @@
 import Link from "next/link";
 
+import { MemberNameCloud } from "@/components/member-name-cloud";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
+import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
-import { formatDate, formatDateShort, formatDateTime, formatWon } from "@/lib/format";
+import { formatDate, formatDateShort, formatWon } from "@/lib/format";
 import { isMockMode } from "@/lib/repo";
-import { getRecruitmentStatus, getSettings } from "@/lib/settings";
+import { getSettings } from "@/lib/settings";
 
-// 모집 상태가 현재 시각에 따라 달라지므로 매 요청마다 계산한다.
+// 참여자 명단을 매 요청마다 읽는다.
 export const dynamic = "force-dynamic";
 
 const PROCESS_STEPS = [
@@ -25,21 +27,21 @@ const NOTICES = [
   "활동 종료 후에는 활동일지와 사진을 제출해 주셔야 합니다.",
 ];
 
-export default async function RecruitmentPage() {
-  const [settings, role] = await Promise.all([getSettings(), getSessionRole()]);
-  const status = getRecruitmentStatus(settings);
+export default async function AlumniHomePage() {
+  const [settings, role, entries] = await Promise.all([
+    getSettings(),
+    getSessionRole(),
+    listCardEntries(),
+  ]);
+
+  // 이름 외 항목은 공개 페이지로 내려보내지 않는다.
+  const names = entries.map((entry) => entry.name);
 
   const cards = [
     {
-      label: "모집 기간",
-      value:
-        settings.recruitmentStartAt && settings.recruitmentEndAt
-          ? `${formatDateShort(settings.recruitmentStartAt)} ~ ${formatDateShort(settings.recruitmentEndAt)}`
-          : "준비 중",
-      detail:
-        settings.recruitmentEndAt && status.phase === "open"
-          ? `${formatDateTime(settings.recruitmentEndAt)} 마감`
-          : undefined,
+      label: "참여 인원",
+      value: `${names.length}명`,
+      detail: `뉴비스쿨 ${settings.cohort}기 수료자`,
     },
     {
       label: "활동 기간",
@@ -52,15 +54,16 @@ export default async function RecruitmentPage() {
       detail: "동문회 전체 활동에 사용",
     },
     {
-      label: "참여 조건",
+      label: "회기 최소 인원",
       value: `${settings.minimumParticipants}명 이상`,
-      detail: `뉴비스쿨 ${settings.cohort}기 수료자 대상`,
+      detail: "한 회기를 진행하기 위한 조건",
     },
   ];
 
   return (
     <>
-      <SiteHeader settings={settings} status={status} />
+      {/* 모집이 끝났으므로 모집 상태 배지는 넘기지 않는다. */}
+      <SiteHeader settings={settings} />
       <SiteNav role={role} current="home" />
 
       <main id="main" className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
@@ -155,11 +158,7 @@ export default async function RecruitmentPage() {
           ) : null}
         </section>
 
-        <ApplyCallToAction
-          accepting={status.acceptingApplications}
-          statusLabel={status.label}
-          recruitmentStartAt={settings.recruitmentStartAt}
-        />
+        <MemberNameCloud names={names} />
 
         <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
       </main>
@@ -169,50 +168,9 @@ export default async function RecruitmentPage() {
   );
 }
 
-function ApplyCallToAction({
-  accepting,
-  statusLabel,
-  recruitmentStartAt,
-}: {
-  accepting: boolean;
-  statusLabel: string;
-  recruitmentStartAt: string;
-}) {
-  if (accepting) {
-    return (
-      <section className="rounded-[14px] bg-navy px-6 py-9 text-center text-white sm:px-8">
-        <h2 className="text-xl font-bold sm:text-2xl">함께하시겠습니까?</h2>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-white/85">
-          3분 이내로 신청할 수 있습니다. 성명, 소속기관, 직책, 휴대전화만 확인하며, 명함
-          이미지는 선택적으로 첨부하실 수 있습니다.
-        </p>
-        <Link
-          href="/apply"
-          className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-blue px-8 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-blue-hover"
-        >
-          참석 희망 신청하기
-        </Link>
-      </section>
-    );
-  }
-
-  return (
-    <section className="rounded-[14px] border border-line bg-surface px-6 py-9 text-center sm:px-8">
-      <h2 className="text-xl font-bold text-navy sm:text-2xl">{statusLabel}</h2>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-soft">
-        {recruitmentStartAt
-          ? `${formatDateTime(recruitmentStartAt)}부터 신청을 받습니다.`
-          : "모집 일정이 확정되면 이 페이지에 안내합니다."}
-      </p>
-      <p className="mt-4 text-sm text-ink-muted">문의는 하단 연락처로 부탁드립니다.</p>
-    </section>
-  );
-}
-
 /**
  * 명함집·활동기록으로 가는 안내.
  *
- * 메인의 주요 행동은 신청이므로 그 아래에 둔다.
  * 비밀번호는 화면에 적지 않는다. 기장·부기장이 채팅방으로 공유한다.
  */
 function MemberAreaGuide({

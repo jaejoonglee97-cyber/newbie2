@@ -71,3 +71,55 @@ body {
   white-space: nowrap;
   border-width: 0;
 }
+
+/*
+ * 참여자 이름 클라우드
+ *
+ * 밤하늘 배경은 이미지 없이 radial-gradient 를 겹쳐 만든다.
+ * 정적이며 애니메이션 대상이 아니다.
+ */
+.night-sky {
+  background-color: var(--color-navy);
+  background-image:
+    radial-gradient(1.5px 1.5px at 18% 24%, rgb(255 255 255 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 72% 16%, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 41% 68%, rgb(255 255 255 / 0.45), transparent),
+    radial-gradient(1.5px 1.5px at 88% 58%, rgb(255 255 255 / 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 9% 82%, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 61% 88%, rgb(255 255 255 / 0.3), transparent),
+    radial-gradient(1.5px 1.5px at 32% 8%, rgb(255 255 255 / 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 95% 30%, rgb(255 255 255 / 0.3), transparent),
+    radial-gradient(140% 90% at 50% 0%, rgb(44 162 176 / 0.28), transparent 70%),
+    radial-gradient(120% 80% at 20% 100%, rgb(62 74 148 / 0.35), transparent 70%);
+}
+
+/*
+ * 이름 알약이 각자 다른 리듬으로 떠오르내린다.
+ *
+ * 애니메이션 규칙 자체를 prefers-reduced-motion 안에만 둔다.
+ * 동작 줄이기를 켠 사용자에게는 규칙이 존재하지 않으므로,
+ * 애니메이션을 걸었다가 되돌리는 과정 없이 처음부터 정적으로 놓인다.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes name-float {
+    0%,
+    100% {
+      transform: translateY(calc(var(--float-amplitude, 7px) * -1));
+    }
+    50% {
+      transform: translateY(var(--float-amplitude, 7px));
+    }
+  }
+
+  .name-pill {
+    animation: name-float var(--float-duration, 5s) ease-in-out infinite;
+    /* 음수 지연으로 시작 시점을 흩어 22개가 한꺼번에 같은 위치에 있지 않게 한다. */
+    animation-delay: var(--float-delay, 0s);
+  }
+
+  /* 읽으려고 가리킨 이름은 멈춘다. */
+  .name-pill:hover,
+  .name-pill:focus-visible {
+    animation-play-state: paused;
+  }
+}
