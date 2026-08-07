@@ -73,53 +73,176 @@ body {
 }
 
 /*
- * 참여자 이름 클라우드
+ * 밤하늘 배경.
  *
- * 밤하늘 배경은 이미지 없이 radial-gradient 를 겹쳐 만든다.
- * 정적이며 애니메이션 대상이 아니다.
+ * 이미지 없이 radial-gradient 를 겹쳐 만든다. 아주 작은 배경 별들과
+ * 위아래에서 스며드는 옅은 광원으로 깊이를 준다. 정적이다.
  */
 .night-sky {
-  background-color: var(--color-navy);
+  background-color: #0d0f38;
   background-image:
-    radial-gradient(1.5px 1.5px at 18% 24%, rgb(255 255 255 / 0.5), transparent),
-    radial-gradient(1.5px 1.5px at 72% 16%, rgb(255 255 255 / 0.4), transparent),
-    radial-gradient(1.5px 1.5px at 41% 68%, rgb(255 255 255 / 0.45), transparent),
-    radial-gradient(1.5px 1.5px at 88% 58%, rgb(255 255 255 / 0.35), transparent),
-    radial-gradient(1.5px 1.5px at 9% 82%, rgb(255 255 255 / 0.4), transparent),
-    radial-gradient(1.5px 1.5px at 61% 88%, rgb(255 255 255 / 0.3), transparent),
-    radial-gradient(1.5px 1.5px at 32% 8%, rgb(255 255 255 / 0.35), transparent),
-    radial-gradient(1.5px 1.5px at 95% 30%, rgb(255 255 255 / 0.3), transparent),
-    radial-gradient(140% 90% at 50% 0%, rgb(44 162 176 / 0.28), transparent 70%),
-    radial-gradient(120% 80% at 20% 100%, rgb(62 74 148 / 0.35), transparent 70%);
+    radial-gradient(1.5px 1.5px at 12% 18%, rgb(255 255 255 / 0.45), transparent),
+    radial-gradient(1px 1px at 27% 62%, rgb(255 255 255 / 0.35), transparent),
+    radial-gradient(1.5px 1.5px at 44% 12%, rgb(255 255 255 / 0.3), transparent),
+    radial-gradient(1px 1px at 58% 78%, rgb(255 255 255 / 0.32), transparent),
+    radial-gradient(1.5px 1.5px at 71% 34%, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1px 1px at 83% 88%, rgb(255 255 255 / 0.28), transparent),
+    radial-gradient(1.5px 1.5px at 91% 22%, rgb(255 255 255 / 0.35), transparent),
+    radial-gradient(1px 1px at 6% 84%, rgb(255 255 255 / 0.3), transparent),
+    radial-gradient(1px 1px at 37% 94%, rgb(255 255 255 / 0.25), transparent),
+    radial-gradient(1.5px 1.5px at 64% 6%, rgb(255 255 255 / 0.3), transparent),
+    radial-gradient(120% 80% at 50% 0%, rgb(44 162 176 / 0.22), transparent 68%),
+    radial-gradient(110% 75% at 18% 100%, rgb(62 74 148 / 0.4), transparent 70%),
+    radial-gradient(90% 70% at 88% 78%, rgb(27 29 117 / 0.5), transparent 70%);
 }
 
 /*
- * 이름 알약이 각자 다른 리듬으로 떠오르내린다.
+ * 성좌.
  *
- * 애니메이션 규칙 자체를 prefers-reduced-motion 안에만 둔다.
- * 동작 줄이기를 켠 사용자에게는 규칙이 존재하지 않으므로,
- * 애니메이션을 걸었다가 되돌리는 과정 없이 처음부터 정적으로 놓인다.
+ * 정사각형 판을 잡고 그 안에 별을 흩는다. 정사각형인 이유는 판 전체가
+ * 회전하기 때문이다. 직사각형을 돌리면 별이 판 밖으로 쓸려 나간다.
+ */
+.constellation {
+  position: relative;
+  width: min(90vw, 640px);
+  aspect-ratio: 1;
+}
+
+.constellation-field {
+  position: absolute;
+  inset: 0;
+}
+
+/* 별 하나. 좌표 위의 0크기 기준점이며, 자식이 이 점을 기준으로 놓인다. */
+.constellation-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.star-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--star-size, 5px);
+  height: var(--star-size, 5px);
+  border-radius: 9999px;
+  background-color: var(--star-color, #fff);
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 6px 1px var(--star-color, #fff),
+    0 0 14px 3px color-mix(in srgb, var(--star-color, #fff) 45%, transparent);
+}
+
+/*
+ * 이름표는 모두 별 아래 같은 방향에 둔다.
+ * top 값과 글자 높이 절반의 합이 constellation.ts 의 LABEL_OFFSET_PERCENT 와
+ * 맞아야 배치 계산이 실제 화면과 어긋나지 않는다.
+ */
+.star-name {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: rgb(255 255 255 / 0.88);
+  cursor: pointer;
+  transition:
+    color 200ms,
+    background-color 200ms;
+  /* 선과 겹쳐도 읽히도록 글자 뒤에 어둠을 깐다. */
+  text-shadow:
+    0 0 4px rgb(13 15 56 / 0.95),
+    0 0 10px rgb(13 15 56 / 0.8);
+}
+
+.star-name:hover {
+  color: #fff;
+  background-color: rgb(255 255 255 / 0.12);
+}
+
+
+/* 선택된 별은 밝아지고 이름이 도드라진다. */
+.constellation-node.is-selected .star-dot {
+  box-shadow:
+    0 0 10px 2px var(--star-color, #fff),
+    0 0 26px 8px color-mix(in srgb, var(--star-color, #fff) 55%, transparent);
+}
+
+.constellation-node.is-selected .star-name {
+  color: #fff;
+  background-color: rgb(255 255 255 / 0.18);
+}
+
+@media (min-width: 640px) {
+  .star-name {
+    padding: 2px 7px;
+    font-size: 13px;
+  }
+}
+
+/*
+ * 움직임.
+ *
+ * 애니메이션 규칙 자체를 prefers-reduced-motion 안에만 둔다. 동작 줄이기를
+ * 켠 사용자에게는 규칙이 존재하지 않으므로, 애니메이션을 걸었다가 되돌리는
+ * 과정 없이 처음부터 정지한 성좌를 본다.
  */
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes name-float {
+  @keyframes constellation-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes constellation-spin-reverse {
+    to {
+      transform: rotate(-360deg);
+    }
+  }
+
+  @keyframes star-twinkle {
     0%,
     100% {
-      transform: translateY(calc(var(--float-amplitude, 7px) * -1));
+      opacity: 0.55;
+      transform: translate(-50%, -50%) scale(0.85);
     }
     50% {
-      transform: translateY(var(--float-amplitude, 7px));
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.2);
     }
   }
 
-  .name-pill {
-    animation: name-float var(--float-duration, 5s) ease-in-out infinite;
-    /* 음수 지연으로 시작 시점을 흩어 22개가 한꺼번에 같은 위치에 있지 않게 한다. */
-    animation-delay: var(--float-delay, 0s);
+  /* 별과 선이 한 요소 안에서 같이 돌기 때문에 선 끝이 별에서 떨어지지 않는다. */
+  .constellation-field {
+    animation: constellation-spin var(--spin, 108s) linear infinite;
   }
 
-  /* 읽으려고 가리킨 이름은 멈춘다. */
-  .name-pill:hover,
-  .name-pill:focus-visible {
+  /*
+   * 판과 같은 주기로 반대로 돌려 글자를 늘 수평으로 유지한다.
+   * 두 애니메이션이 같은 시점에 시작하고 주기가 같으므로 어긋나지 않는다.
+   */
+  .constellation-node {
+    animation: constellation-spin-reverse var(--spin, 108s) linear infinite;
+  }
+
+  .star-dot {
+    animation: star-twinkle var(--twinkle-duration, 4s) ease-in-out infinite;
+    animation-delay: var(--twinkle-delay, 0s);
+  }
+
+  /*
+   * 이름을 눌러 소개를 읽는 동안에는 성좌를 세운다.
+   * 판과 이름표를 함께 멈춰야 글자가 기울지 않는다.
+   */
+  .constellation.is-paused .constellation-field,
+  .constellation.is-paused .constellation-node,
+  .constellation.is-paused .star-dot {
     animation-play-state: paused;
   }
 }

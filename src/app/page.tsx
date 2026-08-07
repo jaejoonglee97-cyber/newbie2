@@ -1,32 +1,23 @@
 import Link from "next/link";
 
-import { MemberNameCloud } from "@/components/member-name-cloud";
+import { ConstellationIntro } from "@/components/constellation-intro";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
-import { formatDate, formatDateShort, formatWon } from "@/lib/format";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 
 // 참여자 명단을 매 요청마다 읽는다.
 export const dynamic = "force-dynamic";
 
-const PROCESS_STEPS = [
-  { title: "주제 설정", detail: "회기별로 모임 주제를 자율적으로 정합니다." },
-  { title: "활동 신청", detail: "주제·일시·예산·참여 예정자를 담아 신청합니다." },
-  { title: "활동 진행", detail: "정해진 일정에 따라 모임을 진행합니다." },
-  { title: "활동 기록 제출", detail: "내용·출석·예산·사진을 활동일지로 남깁니다." },
-];
-
-const NOTICES = [
-  "활동 주제는 자율입니다. 추천 도서 토론, 기관 방문, 슈퍼바이저 초빙 등으로 운영할 수 있습니다.",
-  "한 회기를 진행하려면 뉴비 7명 이상이 참여해야 합니다.",
-  "지원금은 회기별 활동 신청과 활동일지의 예산 내역으로 정산합니다.",
-  "활동 종료 후에는 활동일지와 사진을 제출해 주셔야 합니다.",
-];
-
+/**
+ * 메인 화면.
+ *
+ * 모집이 끝났으므로 모집·운영 안내는 두지 않는다. 화면을 열면 참여자 이름이
+ * 바로 보이는 것이 이 페이지의 목적이다.
+ */
 export default async function AlumniHomePage() {
   const [settings, role, entries] = await Promise.all([
     getSettings(),
@@ -34,133 +25,32 @@ export default async function AlumniHomePage() {
     listCardEntries(),
   ]);
 
-  // 이름 외 항목은 공개 페이지로 내려보내지 않는다.
-  const names = entries.map((entry) => entry.name);
-
-  const cards = [
-    {
-      label: "참여 인원",
-      value: `${names.length}명`,
-      detail: `뉴비스쿨 ${settings.cohort}기 수료자`,
-    },
-    {
-      label: "활동 기간",
-      value: `${formatDateShort(settings.activityStartDate)} ~ ${formatDateShort(settings.activityEndDate)}`,
-      detail: `${formatDate(settings.activityStartDate)}부터 시작`,
-    },
-    {
-      label: "총 지원금",
-      value: formatWon(settings.totalBudget),
-      detail: "동문회 전체 활동에 사용",
-    },
-    {
-      label: "회기 최소 인원",
-      value: `${settings.minimumParticipants}명 이상`,
-      detail: "한 회기를 진행하기 위한 조건",
-    },
-  ];
+  /*
+   * 성좌로 내려보낼 값을 여기서 걸러낸다.
+   *
+   * 이름은 누구에게나 보인다. 한 줄 소개는 동의 범위가 "로그인한 참여자에게
+   * 공개"이므로 비로그인 방문자에게는 빈 문자열로 지운다. 화면에서 감추는 게
+   * 아니라 서버에서 아예 지워 보내므로, 개발자도구로도 볼 수 없다.
+   * 소속기관·직책·기대하는 점·연락처는 애초에 넘기지 않는다.
+   */
+  const canSeeIntroduction = role !== null;
+  const stars = entries.map((entry) => ({
+    name: entry.name,
+    introduction: canSeeIntroduction ? entry.introduction : "",
+  }));
 
   return (
     <>
-      {/* 모집이 끝났으므로 모집 상태 배지는 넘기지 않는다. */}
       <SiteHeader settings={settings} />
       <SiteNav role={role} current="home" />
 
-      <main id="main" className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
-        {isMockMode() ? <MockNotice /> : null}
+      <main id="main">
+        <ConstellationIntro stars={stars} canSeeIntroduction={canSeeIntroduction} />
 
-        <section aria-labelledby="summary" className="mb-12">
-          <h2 id="summary" className="sr-only">
-            운영 개요
-          </h2>
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {cards.map((card) => (
-              <div
-                key={card.label}
-                className="rounded-[14px] border border-line bg-surface p-5 shadow-sm"
-              >
-                <dt className="text-sm font-medium text-ink-muted">{card.label}</dt>
-                <dd className="mt-2 text-lg font-bold leading-snug text-navy">
-                  {card.value}
-                </dd>
-                {card.detail ? (
-                  <p className="mt-1.5 text-xs text-ink-muted">{card.detail}</p>
-                ) : null}
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <section aria-labelledby="purpose" className="mb-12">
-          <h2 id="purpose" className="text-xl font-bold text-navy sm:text-2xl">
-            활동 취지
-          </h2>
-          <div className="mt-4 space-y-4 rounded-[14px] border border-line bg-surface p-6 text-ink-soft sm:p-7">
-            <p>
-              첫 현장에서 마주하는 고민은 혼자 풀기 어렵습니다. 뉴비스쿨 {settings.cohort}기
-              동문회는 교육에서 만난 동료들과 계속 이어지며, 서로의 경험을 나누고 실천을
-              점검하는 자리를 만듭니다.
-            </p>
-            <p>
-              회기별 주제는 참여자가 직접 정합니다. 함께 읽고 싶은 책, 궁금했던 기관, 만나고
-              싶은 슈퍼바이저 무엇이든 가능합니다. 중부재단은 활동에 필요한 비용을 지원하고,
-              기록이 남도록 돕습니다.
-            </p>
-          </div>
-        </section>
-
-        <section aria-labelledby="process" className="mb-12">
-          <h2 id="process" className="text-xl font-bold text-navy sm:text-2xl">
-            운영 절차
-          </h2>
-          <ol className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {PROCESS_STEPS.map((step, index) => (
-              <li
-                key={step.title}
-                className="rounded-[14px] border border-line bg-surface p-5"
-              >
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-teal/15 text-sm font-bold text-teal">
-                  {index + 1}
-                </span>
-                <h3 className="mt-3 font-bold text-ink">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{step.detail}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section aria-labelledby="notice" className="mb-12">
-          <h2 id="notice" className="text-xl font-bold text-navy sm:text-2xl">
-            유의사항
-          </h2>
-          <ul className="mt-4 space-y-3 rounded-[14px] border border-line bg-surface p-6 sm:p-7">
-            {NOTICES.map((notice) => (
-              <li key={notice} className="flex gap-3 text-ink-soft">
-                <span aria-hidden="true" className="mt-0.5 shrink-0 text-brand-blue">
-                  ·
-                </span>
-                <span className="leading-relaxed">{notice}</span>
-              </li>
-            ))}
-          </ul>
-
-          {settings.recruitmentNoticeUrl ? (
-            <p className="mt-4">
-              <a
-                href={settings.recruitmentNoticeUrl}
-                className="text-sm font-semibold text-brand-blue underline hover:text-brand-blue-hover"
-                target="_blank"
-                rel="noreferrer"
-              >
-                모집 안내문 전문 보기
-              </a>
-            </p>
-          ) : null}
-        </section>
-
-        <MemberNameCloud names={names} />
-
-        <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
+        <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
+          {isMockMode() ? <MockNotice /> : null}
+          <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
+        </div>
       </main>
 
       <SiteFooter settings={settings} />
@@ -181,10 +71,10 @@ function MemberAreaGuide({
   teamChatName: string;
 }) {
   return (
-    <section aria-labelledby="member-area" className="mt-6">
+    <section aria-labelledby="member-area">
       <div className="rounded-[14px] border border-line bg-surface px-6 py-7 sm:px-8">
         <h2 id="member-area" className="text-lg font-bold text-navy">
-          이미 신청하셨나요?
+          동문회 기록 보기
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft">
           {role
@@ -232,9 +122,8 @@ function MockNotice() {
       role="status"
       className="mb-8 rounded-[14px] border border-warning/30 bg-warning-soft px-5 py-4 text-sm leading-relaxed text-warning"
     >
-      <strong className="font-bold">검증 모드</strong> · 지금 보이는 값은 가상 데이터입니다.
-      Google Sheets 서비스 계정을 연결하면 실제 설정값을 읽습니다. 이 화면에서 접수한
-      신청은 저장되지 않습니다.
+      <strong className="font-bold">검증 모드</strong> · 지금 보이는 이름은 가상 인물입니다.
+      Google Sheets 서비스 계정을 연결하면 실제 참여자 명단을 읽습니다.
     </p>
   );
 }
