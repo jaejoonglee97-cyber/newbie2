@@ -24,4 +24,25 @@ export async function appendRow(sheetName: string, values: SheetRow): Promise<vo
   return isMockMode() ? mock.appendRow(sheetName, values) : sheets.appendRow(sheetName, values);
 }
 
+/**
+ * 조건에 맞는 행의 일부 컬럼만 고친다. 고친 행 수를 돌려준다.
+ * match 의 모든 컬럼이 일치하는 행만 대상이다.
+ */
+export async function patchRowsWhere(
+  sheetName: string,
+  match: SheetRow,
+  patch: SheetRow,
+): Promise<number> {
+  return isMockMode()
+    ? mock.patchRowsWhere(sheetName, match, patch)
+    : sheets.patchRowsWhere(sheetName, match, patch);
+}
+
+/** 조건에 맞는 행을 지운다. 지운 행 수를 돌려준다. */
+export async function deleteRowsWhere(sheetName: string, match: SheetRow): Promise<number> {
+  return isMockMode()
+    ? mock.deleteRowsWhere(sheetName, match)
+    : sheets.deleteRowsWhere(sheetName, match);
+}
+
 export type { SheetRow };

@@ -108,6 +108,67 @@ export async function uploadCard(
   return uploadImage("card", applicationId, name, upload);
 }
 
+/**
+ * Drive 파일을 지운다. 지운 개수와 못 지운 개수를 돌려준다.
+ *
+ * 서비스 계정은 drive.readonly 권한만 있어 직접 지울 수 없다. 파일을 만든
+ * Apps Script 가 소유자 권한으로 지운다.
+ *
+ * Apps Script 를 아직 새 버전으로 배포하지 않았으면 삭제 요청을 이해하지 못해
+ * 실패한다. 그때도 예외를 던지지 않고 실패 개수만 돌려준다. 시트 정리는
+ * 진행되어야 하고, 남은 파일은 운영자가 Drive 에서 직접 정리할 수 있다.
+ */
+export async function deleteImages(
+  fileIds: string[],
+): Promise<{ deleted: number; failed: number }> {
+  const targets = fileIds.filter(Boolean);
+
+  if (targets.length === 0) {
+    return { deleted: 0, failed: 0 };
+  }
+
+  if (getDataSource() === "mock") {
+    return { deleted: targets.length, failed: 0 };
+  }
+
+  const config = getUploadConfig();
+  if (!config) {
+    return { deleted: 0, failed: targets.length };
+  }
+
+  try {
+    const response = await fetch(config.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret: config.secret, action: "delete", fileIds: targets }),
+      signal: AbortSignal.timeout(25_000),
+    });
+
+    if (!response.ok) {
+      console.error("[card-storage] 삭제 응답 오류", response.status);
+      return { deleted: 0, failed: targets.length };
+    }
+
+    const data = (await response.json()) as {
+      ok?: boolean;
+      deleted?: number;
+      failed?: number;
+      error?: string;
+    };
+
+    if (!data.ok) {
+      console.error("[card-storage] 삭제 실패", data.error ?? "unknown");
+      return { deleted: 0, failed: targets.length };
+    }
+
+    const deleted = data.deleted ?? 0;
+    return { deleted, failed: data.failed ?? targets.length - deleted };
+  } catch (error) {
+    console.error("[card-storage] 삭제 중 예외", error);
+    return { deleted: 0, failed: targets.length };
+  }
+}
+
 export type CardImage = { body: ArrayBuffer; contentType: string };
 
 /**

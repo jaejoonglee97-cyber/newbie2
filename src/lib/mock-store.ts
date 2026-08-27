@@ -165,6 +165,55 @@ export async function appendRow(sheetName: string, values: SheetRow): Promise<vo
   save(store);
 }
 
+/** 조건에 맞는 행의 일부 컬럼만 고친다. 고친 행 수를 돌려준다. */
+export async function patchRowsWhere(
+  sheetName: string,
+  match: SheetRow,
+  patch: SheetRow,
+): Promise<number> {
+  const store = load();
+  const table = requireTable(store, sheetName);
+
+  let changed = 0;
+  for (const row of table) {
+    if (!matches(row, match)) continue;
+    Object.assign(row, patch);
+    changed += 1;
+  }
+
+  if (changed > 0) save(store);
+  return changed;
+}
+
+/** 조건에 맞는 행을 지운다. 지운 행 수를 돌려준다. */
+export async function deleteRowsWhere(sheetName: string, match: SheetRow): Promise<number> {
+  const store = load();
+  const table = requireTable(store, sheetName);
+
+  const kept = table.filter((row) => !matches(row, match));
+  const removed = table.length - kept.length;
+
+  if (removed > 0) {
+    store[sheetName] = kept;
+    save(store);
+  }
+
+  return removed;
+}
+
+function requireTable(store: Store, sheetName: string): SheetRow[] {
+  const table = store[sheetName];
+  if (!table) {
+    throw new Error(`mock 저장소에 없는 시트입니다: ${sheetName}`);
+  }
+  return table;
+}
+
+/** match 의 모든 컬럼이 일치해야 한다. 실제 시트 구현과 같은 규칙이다. */
+function matches(row: SheetRow, match: SheetRow): boolean {
+  return Object.entries(match).every(([column, value]) => (row[column] ?? "") === value);
+}
+
 /** 검증 중 초기 상태로 되돌리고 싶을 때 사용한다. 코드에서는 호출하지 않는다. */
 export function resetMockStore(): void {
   save(seedStore());

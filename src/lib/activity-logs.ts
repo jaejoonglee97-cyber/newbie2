@@ -1,8 +1,8 @@
 import "server-only";
 
-import { uploadImage } from "./card-storage";
+import { deleteImages, uploadImage } from "./card-storage";
 import { nowKstIso, parseNumber } from "./format";
-import { appendRow, readSheet } from "./repo";
+import { appendRow, deleteRowsWhere, patchRowsWhere, readSheet } from "./repo";
 import { getSettings } from "./settings";
 import type {
   ActivityDetail,
@@ -297,6 +297,246 @@ export async function saveActivityLog(
   return { activityId, photosUploaded: succeeded.length, photosFailed: failed };
 }
 
+export type UpdateResult = SaveResult & { photosRemoved: number };
+
+/**
+ * 이미 저장된 활동일지를 고친다.
+ *
+ * 활동 ID 와 회기 번호는 바꾸지 않는다. ID 를 바꾸면 사진 파일 이름과
+ * 인쇄 링크가 어긋나고, 회기 번호는 ID 에 들어 있어 함께 바뀌어야 한다.
+ *
+ * 참여자와 예산은 줄이 늘거나 줄 수 있어 한 줄씩 맞춰 고치기 어렵다.
+ * 해당 활동의 기존 줄을 지우고 새로 넣는다. 사진은 지울 것만 지우고
+ * 새로 첨부한 것만 더한다. 이미 있는 사진을 건드리지 않는다.
+ */
+export async function updateActivityLog(
+  activityId: string,
+  input: ActivityLogInput,
+  newPhotos: PhotoInput[],
+  removedPhotoIds: string[],
+): Promise<UpdateResult> {
+  const now = nowKstIso();
+
+  const activities = await readSheet("activities");
+  const target = activities.find((row) => row.activity_id === activityId);
+
+  if (!target) {
+    throw new Error(`활동을 찾지 못했습니다: ${activityId}`);
+  }
+
+  // 지울 사진을 먼저 확인한다. 시트에 등록된 것만 지울 수 있다.
+  const photoRows = await readSheet("photos");
+  const removable = photoRows.filter(
+    (row) => row.activity_id === activityId && removedPhotoIds.includes(row.photo_id),
+  );
+
+  // 새 사진을 먼저 올린다. 여기서 실패하면 시트는 아직 그대로다.
+  const uploads = await Promise.all(
+    newPhotos.map(async (photo, index) => {
+      const result = await uploadImage("photo", activityId, `add-${index + 1}`, {
+        mimeType: photo.mimeType,
+        dataBase64: photo.dataBase64,
+      });
+      return { photo, result };
+    }),
+  );
+
+  const succeeded = uploads.filter((entry) => entry.result !== null);
+  const failed = uploads.length - succeeded.length;
+
+  await patchRowsWhere(
+    "activities",
+    { activity_id: activityId },
+    {
+      owner_member_id: input.authorMemberId,
+      topic: input.topic,
+      objective: input.objective,
+      expected_effect: input.expectedEffect,
+      activity_date: input.activityDate,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      location: input.location,
+      updated_at: now,
+    },
+  );
+
+  await patchRowsWhere(
+    "activity_logs",
+    { activity_id: activityId },
+    {
+      author_member_id: input.authorMemberId,
+      content: input.content,
+      evaluation: input.evaluation,
+      updated_at: now,
+    },
+  );
+
+  // 참여자 교체
+  await deleteRowsWhere("activity_participants", { activity_id: activityId });
+  const participantSeed = (await readSheet("activity_participants")).length;
+  for (let i = 0; i < input.participants.length; i += 1) {
+    const participant = input.participants[i];
+    await appendRow("activity_participants", {
+      activity_participant_id: `ATP-${pad(participantSeed + i + 1, 6)}`,
+      activity_id: activityId,
+      member_id: participant.memberId,
+      planned: participant.planned ? "TRUE" : "FALSE",
+      attendance_status: participant.attendanceStatus,
+      absence_note: participant.absenceNote,
+      checked_at: now,
+      updated_at: now,
+    });
+  }
+
+  // 실제 사용액 교체. 신청 예산(planned)은 건드리지 않는다.
+  await deleteRowsWhere("budget_items", { activity_id: activityId, budget_type: "actual" });
+  const budgetSeed = (await readSheet("budget_items")).length;
+  for (let i = 0; i < input.budgetItems.length; i += 1) {
+    const item = input.budgetItems[i];
+    await appendRow("budget_items", {
+      budget_item_id: `BUD-${pad(budgetSeed + i + 1, 6)}`,
+      activity_id: activityId,
+      budget_type: "actual",
+      category: item.category,
+      item_name: item.itemName,
+      calculation_basis: item.calculationBasis,
+      quantity: "",
+      unit_price: "",
+      amount: String(item.amount),
+      evidence_file_url: "",
+      memo: "",
+      created_at: now,
+      updated_at: now,
+    });
+  }
+
+  // 사진: 지울 것 지우고 새로 올린 것 추가
+  for (const row of removable) {
+    await deleteRowsWhere("photos", { photo_id: row.photo_id });
+  }
+  const driveCleanup = await deleteImages(removable.map((row) => row.drive_file_id));
+
+  const photoSeed = (await readSheet("photos")).length;
+  for (let i = 0; i < succeeded.length; i += 1) {
+    const entry = succeeded[i];
+    await appendRow("photos", {
+      photo_id: `PHT-${pad(photoSeed + i + 1, 6)}`,
+      activity_id: activityId,
+      drive_file_id: entry.result!.fileId,
+      file_url: entry.result!.fileUrl,
+      caption: entry.photo.caption,
+      is_cover: "FALSE",
+      sort_order: String(photoSeed + i + 1),
+      uploaded_by: input.authorMemberId,
+      uploaded_at: now,
+    });
+  }
+
+  // 대표 사진이 사라졌으면 남은 사진 중 첫 장을 대표로 올린다.
+  const remaining = (await readSheet("photos")).filter(
+    (row) => row.activity_id === activityId,
+  );
+  if (remaining.length > 0 && !remaining.some((row) => row.is_cover === "TRUE")) {
+    await patchRowsWhere("photos", { photo_id: remaining[0].photo_id }, { is_cover: "TRUE" });
+  }
+
+  const auditSeed = (await readSheet("audit_logs")).length;
+  await appendRow("audit_logs", {
+    audit_id: `AUD-${pad(auditSeed + 1, 6)}`,
+    actor_member_id: input.authorMemberId,
+    entity_type: "activity_log",
+    entity_id: activityId,
+    action: "updated",
+    before_value: target.updated_at ?? "",
+    after_value: now,
+    note: buildUpdateNote(succeeded.length, failed, removable.length, driveCleanup.failed),
+    created_at: now,
+  });
+
+  return {
+    activityId,
+    photosUploaded: succeeded.length,
+    photosFailed: failed,
+    photosRemoved: removable.length,
+  };
+}
+
+function buildUpdateNote(
+  added: number,
+  addFailed: number,
+  removed: number,
+  driveFailed: number,
+): string {
+  const parts = ["활동일지 수정"];
+  if (added > 0) parts.push(`사진 ${added}장 추가`);
+  if (addFailed > 0) parts.push(`사진 ${addFailed}장 추가 실패`);
+  if (removed > 0) parts.push(`사진 ${removed}장 삭제`);
+  if (driveFailed > 0) parts.push(`Drive 파일 ${driveFailed}개 정리 필요`);
+  return parts.join(". ");
+}
+
+export type DeleteResult = {
+  activityId: string;
+  photosDeleted: number;
+  /** Drive 에서 지우지 못해 남은 사진 파일 수 */
+  photoFilesRemaining: number;
+};
+
+/**
+ * 활동일지를 지운다. 딸린 줄을 모두 지운다.
+ *
+ * 자식 줄부터 지우고 활동 줄을 마지막에 지운다. 중간에 실패해도 부모 없는
+ * 자식 줄이 남지 않는다. 되돌릴 수 없으므로 호출하는 쪽에서 확인을 받는다.
+ *
+ * audit_logs 는 지우지 않는다. 무엇이 언제 지워졌는지가 유일하게 남는 기록이다.
+ */
+export async function deleteActivityLog(
+  activityId: string,
+  actorMemberId: string,
+): Promise<DeleteResult> {
+  const activities = await readSheet("activities");
+  const target = activities.find((row) => row.activity_id === activityId);
+
+  if (!target) {
+    throw new Error(`활동을 찾지 못했습니다: ${activityId}`);
+  }
+
+  const photoRows = (await readSheet("photos")).filter(
+    (row) => row.activity_id === activityId,
+  );
+
+  await deleteRowsWhere("photos", { activity_id: activityId });
+  await deleteRowsWhere("budget_items", { activity_id: activityId });
+  await deleteRowsWhere("activity_participants", { activity_id: activityId });
+  await deleteRowsWhere("activity_logs", { activity_id: activityId });
+  await deleteRowsWhere("activities", { activity_id: activityId });
+
+  const driveCleanup = await deleteImages(photoRows.map((row) => row.drive_file_id));
+
+  const now = nowKstIso();
+  const auditSeed = (await readSheet("audit_logs")).length;
+  await appendRow("audit_logs", {
+    audit_id: `AUD-${pad(auditSeed + 1, 6)}`,
+    actor_member_id: actorMemberId,
+    entity_type: "activity_log",
+    entity_id: activityId,
+    action: "deleted",
+    before_value: `${target.session_number ?? ""}회기 ${target.topic ?? ""}`.trim(),
+    after_value: "",
+    note:
+      driveCleanup.failed > 0
+        ? `활동일지 삭제. 사진 파일 ${driveCleanup.failed}개는 Drive 에서 직접 정리 필요`
+        : `활동일지 삭제. 사진 파일 ${driveCleanup.deleted}개 정리`,
+    created_at: now,
+  });
+
+  return {
+    activityId,
+    photosDeleted: photoRows.length,
+    photoFilesRemaining: driveCleanup.failed,
+  };
+}
+
 /** 목록 화면용 요약 */
 export async function listActivities(): Promise<ActivitySummary[]> {
   const [activities, participants, budgets, photos, memberNames] = await Promise.all([
@@ -391,6 +631,101 @@ export async function getActivityDetail(activityId: string): Promise<ActivityDet
     })),
     actualTotal: budgetRows.reduce((sum, row) => sum + parseNumber(row.amount ?? "", 0), 0),
     photos: photos
+      .filter((row) => row.activity_id === activityId)
+      .sort((a, b) => parseNumber(a.sort_order ?? "", 0) - parseNumber(b.sort_order ?? "", 0))
+      .map((row) => ({
+        photoId: row.photo_id ?? "",
+        imagePath: `/api/photos/${encodeURIComponent(row.drive_file_id ?? "")}`,
+        caption: row.caption ?? "",
+        isCover: row.is_cover === "TRUE",
+      })),
+  };
+}
+
+/** 수정 화면이 폼을 채우는 데 필요한 값 */
+export type ActivityEditValues = {
+  activityId: string;
+  sessionNumber: number;
+  authorMemberId: string;
+  topic: string;
+  objective: string;
+  expectedEffect: string;
+  activityDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  content: string;
+  evaluation: string;
+  participants: Array<{
+    memberId: string;
+    attendanceStatus: AttendanceStatus;
+    absenceNote: string;
+  }>;
+  budgetItems: Array<{
+    category: string;
+    itemName: string;
+    calculationBasis: string;
+    amount: number;
+  }>;
+  existingPhotos: Array<{
+    photoId: string;
+    imagePath: string;
+    caption: string;
+    isCover: boolean;
+  }>;
+};
+
+/**
+ * 수정 화면용 값.
+ *
+ * getActivityDetail 은 참여자를 이름으로 돌려주므로 폼에서 다시 고를 수 없다.
+ * 여기서는 폼이 쓰는 식별자(member_id)를 그대로 돌려준다.
+ */
+export async function getActivityEditValues(
+  activityId: string,
+): Promise<ActivityEditValues | null> {
+  const [activities, logs, participants, budgets, photos] = await Promise.all([
+    readSheet("activities"),
+    readSheet("activity_logs"),
+    readSheet("activity_participants"),
+    readSheet("budget_items"),
+    readSheet("photos"),
+  ]);
+
+  const activity = activities.find((row) => row.activity_id === activityId);
+  if (!activity) return null;
+
+  const log = logs.find((row) => row.activity_id === activityId);
+
+  return {
+    activityId,
+    sessionNumber: Math.trunc(parseNumber(activity.session_number ?? "", 0)),
+    authorMemberId: activity.owner_member_id ?? "",
+    topic: activity.topic ?? "",
+    objective: activity.objective ?? "",
+    expectedEffect: activity.expected_effect ?? "",
+    activityDate: activity.activity_date ?? "",
+    startTime: activity.start_time ?? "",
+    endTime: activity.end_time ?? "",
+    location: activity.location ?? "",
+    content: log?.content ?? "",
+    evaluation: log?.evaluation ?? "",
+    participants: participants
+      .filter((row) => row.activity_id === activityId)
+      .map((row) => ({
+        memberId: row.member_id ?? "",
+        attendanceStatus: (row.attendance_status ?? "") as AttendanceStatus,
+        absenceNote: row.absence_note ?? "",
+      })),
+    budgetItems: budgets
+      .filter((row) => row.activity_id === activityId && row.budget_type === "actual")
+      .map((row) => ({
+        category: row.category ?? "",
+        itemName: row.item_name ?? "",
+        calculationBasis: row.calculation_basis ?? "",
+        amount: parseNumber(row.amount ?? "", 0),
+      })),
+    existingPhotos: photos
       .filter((row) => row.activity_id === activityId)
       .sort((a, b) => parseNumber(a.sort_order ?? "", 0) - parseNumber(b.sort_order ?? "", 0))
       .map((row) => ({

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import type { Role } from "@/lib/auth";
 
-export type NavTab = "home" | "apply" | "cards" | "activities" | "polls" | "admin";
+export type NavTab = "home" | "apply" | "plan" | "cards" | "activities" | "polls" | "admin";
 
 /**
  * 사이트 전체 공통 이동 막대.
@@ -39,6 +39,11 @@ export function SiteNav({ role, current }: { role: Role | null; current?: NavTab
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-1 px-5 py-3 sm:gap-2 sm:px-8">
         <Link href="/" className={linkClass(current === "home")}>
           동문회 안내
+        </Link>
+
+        {/* 개인정보가 없는 프로그램 안내이므로 잠금 표시를 붙이지 않는다. */}
+        <Link href="/plan" className={linkClass(current === "plan")}>
+          활동 계획
         </Link>
 
         <Link href="/cards" className={linkClass(current === "cards")}>

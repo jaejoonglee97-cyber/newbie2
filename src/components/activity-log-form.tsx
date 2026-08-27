@@ -14,6 +14,44 @@ import type {
 } from "@/lib/activity-types";
 import { formatWon } from "@/lib/format";
 
+/**
+ * 수정 모드에서 폼을 채우는 값.
+ *
+ * 이 값이 있으면 새로 만들지 않고 기존 활동일지를 고친다.
+ * 회기 번호는 활동 ID 에 들어 있어 바꿀 수 없으므로 읽기 전용으로 보여준다.
+ */
+export type ActivityEditInitial = {
+  activityId: string;
+  sessionNumber: number;
+  authorMemberId: string;
+  topic: string;
+  objective: string;
+  expectedEffect: string;
+  activityDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  content: string;
+  evaluation: string;
+  participants: Array<{
+    memberId: string;
+    attendanceStatus: AttendanceStatus;
+    absenceNote: string;
+  }>;
+  budgetItems: Array<{
+    category: string;
+    itemName: string;
+    calculationBasis: string;
+    amount: number;
+  }>;
+  existingPhotos: Array<{
+    photoId: string;
+    imagePath: string;
+    caption: string;
+    isCover: boolean;
+  }>;
+};
+
 type Props = {
   members: MemberOption[];
   minimumParticipants: number;
@@ -21,6 +59,8 @@ type Props = {
   activityEndDate: string;
   nextSessionNumber: number;
   availableBudget: number;
+  /** 수정 모드일 때만 넘긴다. 없으면 새로 작성한다. */
+  initial?: ActivityEditInitial;
 };
 
 type ParticipantState = {
@@ -57,33 +97,62 @@ export function ActivityLogForm({
   activityEndDate,
   nextSessionNumber,
   availableBudget,
+  initial,
 }: Props) {
   const router = useRouter();
   const formId = useId();
+  const isEditing = initial !== undefined;
 
-  const [sessionNumber, setSessionNumber] = useState(String(nextSessionNumber));
-  const [authorMemberId, setAuthorMemberId] = useState("");
-  const [topic, setTopic] = useState("");
-  const [objective, setObjective] = useState("");
-  const [expectedEffect, setExpectedEffect] = useState("");
-  const [activityDate, setActivityDate] = useState("");
-  const [startTime, setStartTime] = useState("14:00");
-  const [endTime, setEndTime] = useState("17:00");
-  const [location, setLocation] = useState("");
-  const [content, setContent] = useState("");
-  const [evaluation, setEvaluation] = useState("");
-
-  const [participants, setParticipants] = useState<ParticipantState[]>(() =>
-    members.map((member) => ({
-      memberId: member.memberId,
-      selected: false,
-      attendanceStatus: "",
-      absenceNote: "",
-    })),
+  const [sessionNumber, setSessionNumber] = useState(
+    String(initial?.sessionNumber ?? nextSessionNumber),
   );
+  const [authorMemberId, setAuthorMemberId] = useState(initial?.authorMemberId ?? "");
+  const [topic, setTopic] = useState(initial?.topic ?? "");
+  const [objective, setObjective] = useState(initial?.objective ?? "");
+  const [expectedEffect, setExpectedEffect] = useState(initial?.expectedEffect ?? "");
+  const [activityDate, setActivityDate] = useState(initial?.activityDate ?? "");
+  const [startTime, setStartTime] = useState(initial?.startTime || "14:00");
+  const [endTime, setEndTime] = useState(initial?.endTime || "17:00");
+  const [location, setLocation] = useState(initial?.location ?? "");
+  const [content, setContent] = useState(initial?.content ?? "");
+  const [evaluation, setEvaluation] = useState(initial?.evaluation ?? "");
 
-  const [budgetRows, setBudgetRows] = useState<BudgetRow[]>([newBudgetRow()]);
+  const [participants, setParticipants] = useState<ParticipantState[]>(() => {
+    const saved = new Map(
+      (initial?.participants ?? []).map((participant) => [participant.memberId, participant]),
+    );
+
+    return members.map((member) => {
+      const match = saved.get(member.memberId);
+      return {
+        memberId: member.memberId,
+        selected: match !== undefined,
+        attendanceStatus: match?.attendanceStatus ?? "",
+        absenceNote: match?.absenceNote ?? "",
+      };
+    });
+  });
+
+  const [budgetRows, setBudgetRows] = useState<BudgetRow[]>(() => {
+    if (!initial || initial.budgetItems.length === 0) {
+      return [newBudgetRow()];
+    }
+
+    return initial.budgetItems.map((item) => ({
+      ...newBudgetRow(),
+      category: (BUDGET_CATEGORIES as readonly string[]).includes(item.category)
+        ? (item.category as BudgetCategory)
+        : "기타",
+      itemName: item.itemName,
+      calculationBasis: item.calculationBasis,
+      amount: String(item.amount),
+    }));
+  });
+
   const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
+
+  /** 수정 모드에서 지우기로 표시한 기존 사진 */
+  const [removedPhotoIds, setRemovedPhotoIds] = useState<string[]>([]);
 
   const [errors, setErrors] = useState<ActivityLogFieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -155,11 +224,14 @@ export function ActivityLogForm({
     const selected = participants.filter((p) => p.selected);
 
     try {
-      const response = await fetch("/api/activities", {
-        method: "POST",
+      const response = await fetch(
+        isEditing ? `/api/activities/${encodeURIComponent(initial.activityId)}` : "/api/activities",
+        {
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionNumber: Number(sessionNumber),
+          removedPhotoIds,
           authorMemberId,
           topic,
           objective,
@@ -189,7 +261,8 @@ export function ActivityLogForm({
             isCover: photo.isCover,
           })),
         }),
-      });
+        },
+      );
 
       const data = (await response.json()) as {
         ok: boolean;
@@ -201,6 +274,8 @@ export function ActivityLogForm({
 
       if (data.ok && data.activityId) {
         router.push(`/activities/${data.activityId}`);
+        // 상세 화면이 방금 고친 값을 읽도록 서버 데이터를 다시 받아온다.
+        router.refresh();
         return;
       }
 
@@ -239,12 +314,19 @@ export function ActivityLogForm({
               min={1}
               max={99}
               value={sessionNumber}
+              /* 회기 번호는 활동 ID 에 들어 있어 수정할 수 없다. */
+              readOnly={isEditing}
               onChange={(event) => {
                 setSessionNumber(event.target.value);
                 clearError("sessionNumber");
               }}
-              className={inputClass(errors.sessionNumber)}
+              className={`${inputClass(errors.sessionNumber)} ${
+                isEditing ? "cursor-not-allowed bg-canvas text-ink-muted" : ""
+              }`}
             />
+            {isEditing ? (
+              <p className="mt-1 text-xs text-ink-muted">회기 번호는 바꿀 수 없습니다.</p>
+            ) : null}
           </Field>
 
           <Field id={`${formId}-author`} label="작성자" required error={errors.authorMemberId}>
@@ -650,6 +732,65 @@ export function ActivityLogForm({
 
       {/* 사진 */}
       <Section title="모임 사진" description="인쇄물 2페이지부터 순서대로 실립니다.">
+        {initial && initial.existingPhotos.length > 0 ? (
+          <div className="mb-6">
+            <p className="text-sm font-bold text-ink">
+              이미 올린 사진 ({initial.existingPhotos.length - removedPhotoIds.length}장)
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+              지우기로 표시한 사진은 저장할 때 Drive 에서도 함께 지워집니다.
+            </p>
+
+            <ul className="mt-3 grid gap-3 sm:grid-cols-3">
+              {initial.existingPhotos.map((photo) => {
+                const removed = removedPhotoIds.includes(photo.photoId);
+
+                return (
+                  <li
+                    key={photo.photoId}
+                    className={`overflow-hidden rounded-lg border ${
+                      removed ? "border-danger/50 bg-danger-soft" : "border-line bg-surface"
+                    }`}
+                  >
+                    <img
+                      src={photo.imagePath}
+                      alt={photo.caption || "활동 사진"}
+                      className={`aspect-[4/3] w-full bg-canvas object-contain ${
+                        removed ? "opacity-40" : ""
+                      }`}
+                      loading="lazy"
+                    />
+                    <div className="border-t border-line px-3 py-2">
+                      <p className="truncate text-xs text-ink-muted">
+                        {photo.caption || "설명 없음"}
+                      </p>
+                      <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => {
+                          clearError("photos");
+                          setRemovedPhotoIds((prev) =>
+                            removed
+                              ? prev.filter((id) => id !== photo.photoId)
+                              : [...prev, photo.photoId],
+                          );
+                        }}
+                        className={`mt-2 w-full rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors ${
+                          removed
+                            ? "border-line bg-surface text-ink-soft hover:border-brand-blue/50"
+                            : "border-line text-ink-soft hover:border-danger/50 hover:text-danger"
+                        }`}
+                      >
+                        {removed ? "되돌리기" : "지우기"}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
+
         <PhotoField
           photos={photos}
           onChange={(next) => {
@@ -667,13 +808,17 @@ export function ActivityLogForm({
           disabled={submitting}
           className="inline-flex items-center justify-center rounded-lg bg-brand-blue px-8 py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-ink-muted"
         >
-          {submitting ? "저장 중..." : "활동일지 저장"}
+          {submitting
+            ? "저장 중..."
+            : isEditing
+              ? "수정 내용 저장"
+              : "활동일지 저장"}
         </button>
         <Link
-          href="/activities"
+          href={isEditing ? `/activities/${initial.activityId}` : "/activities"}
           className="inline-flex items-center justify-center rounded-lg border border-line bg-surface px-6 py-3.5 text-sm font-semibold text-ink-soft hover:border-brand-blue/50"
         >
-          목록으로
+          {isEditing ? "취소" : "목록으로"}
         </Link>
       </div>
 

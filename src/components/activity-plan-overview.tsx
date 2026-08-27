@@ -1,6 +1,6 @@
 export function ActivityPlanOverview() {
   return (
-    <section aria-labelledby="activity-plan" className="mt-8 rounded-[14px] border border-line bg-surface overflow-hidden">
+    <section aria-labelledby="activity-plan" className="rounded-[14px] border border-line bg-surface overflow-hidden">
       <div className="bg-navy px-6 py-8 sm:px-8 text-center text-white">
         <h2 id="activity-plan" className="text-xl sm:text-2xl font-bold">
           뉴비스쿨 2기 동문회 활동 계획

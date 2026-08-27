@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { DeleteActivityButton } from "@/components/delete-activity-button";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -59,7 +60,28 @@ export default async function ActivityDetailPage({
           >
             목록으로
           </Link>
+
+          {/* 수정·삭제는 운영자만 할 수 있다. API 에서도 같은 조건을 확인한다. */}
+          {role === "admin" ? (
+            <Link
+              href={`/activities/${detail.activityId}/edit`}
+              className="inline-flex items-center justify-center rounded-lg border border-line bg-surface px-6 py-3 text-sm font-semibold text-brand-blue hover:border-brand-blue/60"
+            >
+              수정
+            </Link>
+          ) : null}
         </div>
+
+        {role === "admin" ? (
+          <div className="mt-3">
+            <DeleteActivityButton
+              activityId={detail.activityId}
+              sessionNumber={detail.sessionNumber}
+              topic={detail.topic}
+              photoCount={detail.photos.length}
+            />
+          </div>
+        ) : null}
 
         <dl className="mt-10 divide-y divide-line rounded-[14px] border border-line bg-surface px-6">
           <Row label="작성자" value={detail.authorName || "-"} />

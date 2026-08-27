@@ -4,7 +4,6 @@ import { ConstellationIntro } from "@/components/constellation-intro";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
-import { ActivityPlanOverview } from "@/components/activity-plan-overview";
 import { PollCard } from "@/components/poll-card";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
@@ -71,8 +70,6 @@ export default async function AlumniHomePage() {
               />
             </section>
           ) : null}
-
-          <ActivityPlanOverview />
         </div>
       </main>
 
@@ -105,7 +102,17 @@ function MemberAreaGuide({
             : `동문회 공통 비밀번호를 입력하면 명함집과 활동 기록을 보실 수 있습니다. 비밀번호는 ${teamChatName}에서 안내드립니다.`}
         </p>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <Link
+            href="/plan"
+            className="flex flex-col gap-1 rounded-lg border border-line px-5 py-4 transition-colors hover:border-brand-blue/60 hover:bg-canvas"
+          >
+            <span className="font-bold text-ink">활동 계획</span>
+            <span className="text-xs leading-relaxed text-ink-muted">
+              9월부터 12월까지 월별 프로그램과 기대하는 변화입니다.
+            </span>
+          </Link>
+
           <Link
             href="/cards"
             className="flex flex-col gap-1 rounded-lg border border-line px-5 py-4 transition-colors hover:border-brand-blue/60 hover:bg-canvas"

@@ -17,16 +17,21 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function ActivitiesPage() {
+export default async function ActivitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string; photoFilesRemaining?: string }>;
+}) {
   const role = await getSessionRole();
   if (!role) {
     redirect("/login?returnTo=%2Factivities");
   }
 
-  const [settings, activities, budget] = await Promise.all([
+  const [settings, activities, budget, query] = await Promise.all([
     getSettings(),
     listActivities(),
     getBudgetSummary(),
+    searchParams,
   ]);
 
   return (
@@ -58,6 +63,23 @@ export default async function ActivitiesPage() {
             </Link>
           </div>
         </div>
+
+        {query.deleted ? (
+          <p
+            role="status"
+            className="mt-6 rounded-[14px] border border-success/30 bg-success-soft px-5 py-4 text-sm leading-relaxed text-success"
+          >
+            <strong className="font-bold">삭제 완료</strong> · &ldquo;{query.deleted}&rdquo;
+            활동일지를 지웠습니다.
+            {query.photoFilesRemaining ? (
+              <>
+                {" "}
+                다만 사진 파일 {query.photoFilesRemaining}개는 Drive 에서 지우지 못했습니다.
+                활동 사진 폴더에서 직접 정리해 주세요.
+              </>
+            ) : null}
+          </p>
+        ) : null}
 
         {isMockMode() ? (
           <p

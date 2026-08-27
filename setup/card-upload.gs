@@ -175,6 +175,11 @@ function doPost(e) {
       return jsonResponse({ ok: false, error: 'unauthorized' });
     }
 
+    // 활동일지를 지울 때 딸린 사진 파일도 함께 지운다.
+    if (request.action === 'delete') {
+      return handleDelete(request);
+    }
+
     var kind = FOLDER_SPEC[request.kind] ? request.kind : 'card';
 
     var mimeType = String(request.mimeType || '');
@@ -212,6 +217,67 @@ function doPost(e) {
     Logger.log('업로드 실패: ' + error);
     return jsonResponse({ ok: false, error: 'internal_error' });
   }
+}
+
+/**
+ * 파일을 지운다.
+ *
+ * 관리하는 폴더 안에 있는 파일만 지운다. 폴더 밖의 파일 ID 가 넘어오면
+ * 건너뛴다. 시크릿이 새더라도 이 스크립트로 소유자의 다른 Drive 파일을
+ * 지울 수 없게 하기 위해서다.
+ */
+function handleDelete(request) {
+  var fileIds = request.fileIds;
+  if (!fileIds || !fileIds.length) {
+    return jsonResponse({ ok: true, deleted: 0, failed: 0 });
+  }
+
+  var allowedFolders = [];
+  var kinds = Object.keys(FOLDER_SPEC);
+  for (var k = 0; k < kinds.length; k++) {
+    try {
+      allowedFolders.push(getOrCreateFolder(kinds[k]).getId());
+    } catch (error) {
+      Logger.log('폴더 확인 실패: ' + error);
+    }
+  }
+
+  var deleted = 0;
+  var failed = 0;
+
+  for (var i = 0; i < fileIds.length; i++) {
+    try {
+      var file = DriveApp.getFileById(String(fileIds[i]));
+
+      if (!isInAllowedFolder(file, allowedFolders)) {
+        Logger.log('관리 폴더 밖의 파일이라 건너뜁니다: ' + fileIds[i]);
+        failed += 1;
+        continue;
+      }
+
+      // setTrashed 를 쓰면 휴지통으로 가서 실수 시 되돌릴 수 있다.
+      file.setTrashed(true);
+      deleted += 1;
+    } catch (error) {
+      Logger.log('파일 삭제 실패: ' + fileIds[i] + ' ' + error);
+      failed += 1;
+    }
+  }
+
+  return jsonResponse({ ok: true, deleted: deleted, failed: failed });
+}
+
+function isInAllowedFolder(file, allowedFolders) {
+  var parents = file.getParents();
+
+  while (parents.hasNext()) {
+    var parentId = parents.next().getId();
+    if (allowedFolders.indexOf(parentId) !== -1) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /** 배포 확인용. 시크릿이나 목록은 노출하지 않는다. */
