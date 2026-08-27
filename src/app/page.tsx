@@ -4,6 +4,7 @@ import { ConstellationIntro } from "@/components/constellation-intro";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
+import { ActivityPlanOverview } from "@/components/activity-plan-overview";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
 import { isMockMode } from "@/lib/repo";
@@ -50,6 +51,7 @@ export default async function AlumniHomePage() {
         <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
           {isMockMode() ? <MockNotice /> : null}
           <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
+          <ActivityPlanOverview />
         </div>
       </main>
 

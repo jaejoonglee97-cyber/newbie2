@@ -51,7 +51,7 @@ var CHOICES = {
   budget_type: ['planned', 'actual'],
   budget_category: ['식비', '도서비', '강사비', '대관비', '교통비', '재료비', '기타'],
   review_status: ['임시저장', '제출', '보완요청', '완료'],
-  entity_type: ['applicant', 'member', 'activity', 'activity_log', 'budget_item', 'photo'],
+  entity_type: ['applicant', 'member', 'activity', 'activity_log', 'budget_item', 'photo', 'report'],
 };
 
 // ---------------------------------------------------------------------------
@@ -220,6 +220,24 @@ var SHEETS = [
       ['after_value', TEXT, null],
       ['note', null, null],
       ['created_at', TEXT, null],
+    ],
+  },
+  {
+    name: 'reports',
+    columns: [
+      ['report_id', TEXT, null],
+      ['program_id', TEXT, null],
+      ['author_member_id', TEXT, null],
+      ['topic', TEXT, null],
+      ['main_content', null, null],
+      ['activity_area', TEXT, null],
+      ['goal_achievement', null, null],
+      ['benefits', null, null],
+      ['regrets', null, null],
+      ['future_plans', null, null],
+      ['impressions', null, null],
+      ['created_at', TEXT, null],
+      ['updated_at', TEXT, null],
     ],
   },
 ];

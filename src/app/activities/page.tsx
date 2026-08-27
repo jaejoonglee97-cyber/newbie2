@@ -43,12 +43,20 @@ export default async function ActivitiesPage() {
             </p>
           </div>
 
-          <Link
-            href="/activities/new"
-            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-blue px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-blue-hover"
-          >
-            + 활동일지 작성
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Link
+              href="/activities/report"
+              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-line bg-surface px-6 py-3 text-sm font-bold text-ink-soft transition-colors hover:border-brand-blue/50"
+            >
+              결과보고서 보기/작성
+            </Link>
+            <Link
+              href="/activities/new"
+              className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-blue px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-blue-hover"
+            >
+              + 활동일지 작성
+            </Link>
+          </div>
         </div>
 
         {isMockMode() ? (
