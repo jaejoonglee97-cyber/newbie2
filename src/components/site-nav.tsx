@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import type { Role } from "@/lib/auth";
 
-export type NavTab = "home" | "apply" | "cards" | "activities" | "admin";
+export type NavTab = "home" | "apply" | "cards" | "activities" | "polls" | "admin";
 
 /**
  * 사이트 전체 공통 이동 막대.
@@ -48,6 +48,11 @@ export function SiteNav({ role, current }: { role: Role | null; current?: NavTab
 
         <Link href="/activities" className={linkClass(current === "activities")}>
           활동 기록
+          {role ? null : <LockMark />}
+        </Link>
+
+        <Link href="/polls" className={linkClass(current === "polls")}>
+          투표
           {role ? null : <LockMark />}
         </Link>
 
