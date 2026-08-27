@@ -4,11 +4,14 @@ import type { ReactNode } from "react";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { CreatePollForm } from "@/components/create-poll-form";
+import { PollCard } from "@/components/poll-card";
 import { listApplicantRecords } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { isMockMode } from "@/lib/repo";
 import { getRecruitmentStatus, getSettings } from "@/lib/settings";
+import { listPolls } from "@/lib/poll-logs";
 import type { ApplicantRecord } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +30,11 @@ export default async function AdminPage() {
     redirect("/cards");
   }
 
-  const [settings, records] = await Promise.all([getSettings(), listApplicantRecords()]);
+  const [settings, records, polls] = await Promise.all([
+    getSettings(),
+    listApplicantRecords(),
+    listPolls().catch(() => []),
+  ]);
   const status = getRecruitmentStatus(settings);
 
   // 별도 승인 절차가 없다. 신청하면 그대로 참여 확정이므로, 운영자가 직접
@@ -120,6 +127,43 @@ export default async function AdminPage() {
         </div>
 
         <ExpectationDigest records={records} />
+
+        {/* ── 투표 관리 ── */}
+        <section aria-labelledby="poll-manage" className="mt-16">
+          <h2 id="poll-manage" className="text-xl font-bold text-navy sm:text-2xl">
+            🗳️ 투표 관리
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
+            날짜투표 또는 참석투표를 만들면 로그인한 구성원의 홈 화면에 바로 표시됩니다.
+          </p>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            {/* 투표 생성 폼 */}
+            <CreatePollForm memberNames={records.map((r) => r.name)} />
+
+            {/* 기존 투표 목록 */}
+            <div className="space-y-4">
+              <h3 className="text-base font-bold text-ink">진행 중인 투표</h3>
+              {polls.length === 0 ? (
+                <p className="text-sm text-ink-muted rounded-[14px] border border-line bg-canvas px-5 py-8 text-center">
+                  아직 만들어진 투표가 없습니다.
+                </p>
+              ) : (
+                polls
+                  .filter((p) => p.poll.status !== "closed")
+                  .slice(0, 3)
+                  .map((pollResult) => (
+                    <PollCard
+                      key={pollResult.poll.pollId}
+                      result={pollResult}
+                      memberNames={records.map((r) => r.name)}
+                      isAdmin
+                    />
+                  ))
+              )}
+            </div>
+          </div>
+        </section>
       </main>
 
       <SiteFooter settings={settings} />

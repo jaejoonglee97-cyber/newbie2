@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>뉴비스쿨 2기 동문회 활동일지</title>
+  <style>
+    /* ─── 기본 폰트 ─── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; }
+
+    /* ─── 인쇄 툴바 (인쇄 시 숨김) ─── */
+    .toolbar {
+      background: #1e293b;
+      color: #fff;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .toolbar p { font-size: 13px; color: #94a3b8; }
+    .toolbar-actions { display: flex; gap: 8px; }
+    .btn-print {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 7px 18px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-print:hover { background: #2563eb; }
+
+    /* ─── A4 종이 배경 ─── */
+    @media screen {
+      .paper-bg {
+        background: #eef2f7;
+        padding: 10mm 0 20mm;
+        min-height: 100vh;
+      }
+      .sheet {
+        padding: 15mm;
+        box-shadow: 0 2px 16px rgba(15,23,42,0.12);
+        border-radius: 2px;
+      }
+      .print-page + .print-page {
+        margin-top: 10mm;
+      }
+    }
+
+    /* ─── 시트 공통 ─── */
+    .sheet {
+      width: 180mm;
+      margin: 0 auto;
+      background: #ffffff;
+      color: #111827;
+      font-size: 10.5pt;
+      line-height: 1.65;
+    }
+
+    /* ─── 제목 ─── */
+    .doc-title {
+      text-align: center;
+      font-size: 17pt;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      padding-bottom: 4mm;
+      border-bottom: 2px solid #111827;
+      margin-bottom: 6mm;
+    }
+
+    /* ─── 섹션 소제목 ─── */
+    .section-title {
+      font-size: 11.5pt;
+      font-weight: 700;
+      margin: 6mm 0 2mm;
+      padding-bottom: 1.5mm;
+      border-bottom: 1px solid #9ca3af;
+    }
+
+    /* ─── 표 공통 ─── */
+    .grid-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .grid-table th,
+    .grid-table td {
+      border: 1px solid #6b7280;
+      padding: 2mm 3mm;
+      vertical-align: top;
+      text-align: left;
+    }
+    .grid-table th {
+      background: #f3f4f6;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .grid-table td.num {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .grid-table tfoot td {
+      background: #f3f4f6;
+      font-weight: 700;
+    }
+
+    /* ─── 긴 본문 영역 ─── */
+    .prose-box {
+      border: 1px solid #6b7280;
+      padding: 3mm;
+      min-height: 30mm;
+      white-space: pre-wrap;
+    }
+
+    /* ─── 사진 ─── */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5mm;
+    }
+    .photo-item {
+      border: 1px solid #6b7280;
+      padding: 2mm;
+    }
+    .photo-item img {
+      display: block;
+      width: 100%;
+      height: 62mm;
+      object-fit: contain;
+      background: #f9fafb;
+    }
+    .photo-caption {
+      margin-top: 1.5mm;
+      font-size: 9pt;
+      color: #374151;
+      text-align: center;
+    }
+    /* 사진 없을 때 회색 박스 */
+    .photo-placeholder {
+      width: 100%;
+      height: 62mm;
+      background: #f3f4f6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9ca3af;
+      font-size: 9pt;
+    }
+
+    /* ─── 인쇄 전용 ─── */
+    @page {
+      size: A4 portrait;
+      margin: 15mm;
+    }
+    @media print {
+      .toolbar { display: none !important; }
+      .sheet { width: auto; margin: 0; padding: 0; }
+      .print-page { break-after: page; }
+      .print-page:last-child { break-after: auto; }
+      .avoid-break { break-inside: avoid; }
+      thead { display: table-header-group; }
+      * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ■ 인쇄 툴바 (화면 전용) -->
+  <div class="toolbar">
+    <p>🖨️ 활동일지 인쇄 미리보기 — 내용을 직접 수정한 후 [인쇄] 버튼을 눌러 PDF로 저장하세요.</p>
+    <div class="toolbar-actions">
+      <button class="btn-print" onclick="window.print()">인쇄 (PDF 저장)</button>
+    </div>
+  </div>
+
+  <div class="paper-bg">
+
+    <!-- ■ 1페이지: 활동일지 본문 -->
+    <article class="sheet print-page">
+
+      <h1 class="doc-title">뉴비스쿨 2기 동문회 1회기 활동일지</h1>
+
+      <!-- 기본 정보 -->
+      <table class="grid-table avoid-break">
+        <tbody>
+          <tr>
+            <th style="width:24mm">작성자</th>
+            <td>홍길동 (서울특별시사회복지사협회)</td>
+            <th style="width:24mm">모임 장소</th>
+            <td>중부재단 회의실</td>
+          </tr>
+          <tr>
+            <th>모임 일시</th>
+            <td colspan="3">2026년 09월 20일 14:00 ~ 17:00</td>
+          </tr>
+          <tr>
+            <th>모임 주제</th>
+            <td colspan="3">다시 만나 반가워요 — 관계형성과 동문회 방향 만들기</td>
+          </tr>
+          <tr>
+            <th>모임 목표</th>
+            <td colspan="3">오리엔테이션을 통해 구성원 간 관계를 형성하고 동문회 활동의 방향을 함께 설정한다.</td>
+          </tr>
+          <tr>
+            <th>기대 효과</th>
+            <td colspan="3">동료 지지체계 형성 및 지속적인 교류 기반 마련</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 모임 내용 -->
+      <h2 class="section-title">모임 내용</h2>
+      <div class="prose-box">1. 오리엔테이션 및 자기소개 (14:00 ~ 14:40)
+   - 동문회 취지 및 목적 안내
+   - 구성원 소개: 현재 소속기관, 담당 업무, 입사 후 느낀 점 등 근황 나눔
+
+2. 관계 형성 활동 (14:40 ~ 15:40)
+   - 아이스브레이킹: "이 일을 선택한 나만의 이유" 카드 작성 및 공유
+   - 소그룹으로 나뉘어 뉴비스쿨 이후의 변화와 현장 적응 경험 나눔
+
+3. 동문회 방향 설정 (15:50 ~ 16:50)
+   - 앞으로의 동문회 활동에서 기대하는 바 공유
+   - 9월~12월 월별 주제 소개 및 의견 수렴
+   - 진행 방식 (참여 방식, 장소, 일정) 논의 및 결정
+
+4. 마무리 (16:50 ~ 17:00)
+   - 소감 나눔 및 다음 모임 일정 안내</div>
+
+      <!-- 평가 및 소감 -->
+      <h2 class="section-title">모임 평가 및 소감</h2>
+      <div class="prose-box">오랜만에 다시 만난 동문들이 어색함 없이 빠르게 분위기를 되찾았습니다. 아이스브레이킹 활동이 특히 효과적이었으며, 서로의 현장 이야기를 나누면서 자연스럽게 공감과 연대감이 형성되었습니다.
+
+동문회 방향을 함께 논의하는 과정에서 구성원들이 주도적으로 의견을 제시하여 높은 참여 의지를 확인할 수 있었습니다. 
+
+다음 회기에도 소그룹 나눔 형식을 유지해 달라는 의견이 많았습니다.</div>
+
+      <!-- 참여자 명단 -->
+      <h2 class="section-title">참여자 명단</h2>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th style="width:12mm">번호</th>
+            <th>소속기관</th>
+            <th style="width:28mm">성명</th>
+            <th style="width:20mm">출석</th>
+            <th style="width:34mm">비고</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td>서울특별시사회복지사협회</td>
+            <td>홍길동</td>
+            <td>참석</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td>중부노인종합복지관</td>
+            <td>김민지</td>
+            <td>참석</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="num">3</td>
+            <td>방화11종합사회복지관</td>
+            <td>이수연</td>
+            <td>참석</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="num">4</td>
+            <td>관악장애인복지관</td>
+            <td>박준혁</td>
+            <td>지각</td>
+            <td>업무 사정으로 30분 늦게 합류</td>
+          </tr>
+          <tr>
+            <td class="num">5</td>
+            <td>노원청소년문화의집</td>
+            <td>최예림</td>
+            <td>참석</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="num">6</td>
+            <td>성북지역자활센터</td>
+            <td>정다은</td>
+            <td>참석</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td class="num">7</td>
+            <td>구로가족센터</td>
+            <td>강현우</td>
+            <td>불참</td>
+            <td>개인 사정으로 불참</td>
+          </tr>
+          <tr>
+            <td class="num">8</td>
+            <td>도봉아동복지센터</td>
+            <td>윤소희</td>
+            <td>참석</td>
+            <td></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="text-align:right">실제 참석 인원</td>
+            <td colspan="2">7명</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- 예산 사용내역 -->
+      <h2 class="section-title">예산 사용내역</h2>
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th style="width:12mm">번호</th>
+            <th style="width:22mm">분류</th>
+            <th>항목명</th>
+            <th>산출 근거</th>
+            <th style="width:26mm">금액</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">1</td>
+            <td>식비</td>
+            <td>모임 다과</td>
+            <td>7명 × 10,000원</td>
+            <td class="num">70,000</td>
+          </tr>
+          <tr>
+            <td class="num">2</td>
+            <td>재료비</td>
+            <td>아이스브레이킹 카드 인쇄</td>
+            <td>A4 용지 및 출력비</td>
+            <td class="num">15,000</td>
+          </tr>
+          <tr>
+            <td class="num">3</td>
+            <td>기타</td>
+            <td>문구류</td>
+            <td>포스트잇, 네임펜 등</td>
+            <td class="num">8,500</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align:right">합계</td>
+            <td class="num">93,500원</td>
+          </tr>
+        </tfoot>
+      </table>
+
+    </article><!-- /.sheet (1페이지) -->
+
+
+    <!-- ■ 2페이지: 모임 사진 -->
+    <article class="sheet print-page">
+
+      <h2 class="section-title" style="margin-top:0">모임 사진</h2>
+
+      <div class="photo-grid">
+
+        <figure class="photo-item avoid-break">
+          <!-- 실제 사용 시: src 부분을 이미지 경로로 교체하거나 아래처럼 회색 박스를 이미지 태그로 바꾸세요 -->
+          <div class="photo-placeholder">사진 1</div>
+          <figcaption class="photo-caption">오리엔테이션 및 자기소개 시간</figcaption>
+        </figure>
+
+        <figure class="photo-item avoid-break">
+          <div class="photo-placeholder">사진 2</div>
+          <figcaption class="photo-caption">아이스브레이킹 카드 작성 활동</figcaption>
+        </figure>
+
+        <figure class="photo-item avoid-break">
+          <div class="photo-placeholder">사진 3</div>
+          <figcaption class="photo-caption">소그룹 나눔 진행 모습</figcaption>
+        </figure>
+
+        <figure class="photo-item avoid-break">
+          <div class="photo-placeholder">사진 4</div>
+          <figcaption class="photo-caption">동문회 방향 논의</figcaption>
+        </figure>
+
+        <figure class="photo-item avoid-break">
+          <div class="photo-placeholder">사진 5</div>
+          <figcaption class="photo-caption">단체 기념사진</figcaption>
+        </figure>
+
+        <figure class="photo-item avoid-break">
+          <div class="photo-placeholder">사진 6</div>
+          <figcaption class="photo-caption">모임 후 다과 시간</figcaption>
+        </figure>
+
+      </div>
+    </article><!-- /.sheet (2페이지) -->
+
+  </div><!-- /.paper-bg -->
+
+</body>
+</html>

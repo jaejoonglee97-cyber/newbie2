@@ -5,10 +5,12 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
 import { ActivityPlanOverview } from "@/components/activity-plan-overview";
+import { PollCard } from "@/components/poll-card";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
+import { getActivePoll } from "@/lib/poll-logs";
 
 // 참여자 명단을 매 요청마다 읽는다.
 export const dynamic = "force-dynamic";
@@ -20,10 +22,11 @@ export const dynamic = "force-dynamic";
  * 바로 보이는 것이 이 페이지의 목적이다.
  */
 export default async function AlumniHomePage() {
-  const [settings, role, entries] = await Promise.all([
+  const [settings, role, entries, activePoll] = await Promise.all([
     getSettings(),
     getSessionRole(),
     listCardEntries(),
+    getActivePoll().catch(() => null),
   ]);
 
   /*
@@ -40,6 +43,9 @@ export default async function AlumniHomePage() {
     introduction: canSeeIntroduction ? entry.introduction : "",
   }));
 
+  // 투표 참여자 이름 목록 (로그인한 경우에만)
+  const memberNames = role ? entries.map((e) => e.name).filter(Boolean) : [];
+
   return (
     <>
       <SiteHeader settings={settings} />
@@ -48,9 +54,24 @@ export default async function AlumniHomePage() {
       <main id="main">
         <ConstellationIntro stars={stars} canSeeIntroduction={canSeeIntroduction} />
 
-        <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12">
+        <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-12 space-y-8">
           {isMockMode() ? <MockNotice /> : null}
           <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
+
+          {/* 진행 중인 투표가 있고 로그인된 경우에만 보여준다 */}
+          {role && activePoll ? (
+            <section aria-labelledby="poll-section">
+              <h2 id="poll-section" className="mb-4 text-lg font-bold text-navy">
+                🗳️ 현재 진행 중인 투표
+              </h2>
+              <PollCard
+                result={activePoll}
+                memberNames={memberNames}
+                isAdmin={role === "admin"}
+              />
+            </section>
+          ) : null}
+
           <ActivityPlanOverview />
         </div>
       </main>

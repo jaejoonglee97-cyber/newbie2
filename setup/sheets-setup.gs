@@ -240,6 +240,51 @@ var SHEETS = [
       ['updated_at', TEXT, null],
     ],
   },
+  {
+    // 투표 하나 (날짜투표 또는 참석투표)
+    name: 'polls',
+    columns: [
+      ['poll_id', TEXT, null],
+      ['program_id', TEXT, null],
+      // 'date' = 날짜투표, 'attendance' = 참석투표
+      ['poll_type', TEXT, ['date', 'attendance']],
+      ['title', TEXT, null],
+      ['description', null, null],
+      // 'open' = 진행 중, 'closed' = 마감, 'confirmed' = 확정
+      ['status', TEXT, ['open', 'closed', 'confirmed']],
+      // 날짜투표 확정 후 선택된 최종 날짜
+      ['confirmed_date', TEXT, null],
+      ['created_by', TEXT, null],
+      ['created_at', TEXT, null],
+      ['updated_at', TEXT, null],
+    ],
+  },
+  {
+    // 날짜투표의 후보 날짜 목록
+    name: 'poll_options',
+    columns: [
+      ['option_id', TEXT, null],
+      ['poll_id', TEXT, null],
+      // YYYY-MM-DD
+      ['option_date', DATE, null],
+      ['option_label', TEXT, null],
+      ['sort_order', NUMBER, null],
+      ['created_at', TEXT, null],
+    ],
+  },
+  {
+    // 개인별 투표 내용
+    name: 'poll_votes',
+    columns: [
+      ['vote_id', TEXT, null],
+      ['poll_id', TEXT, null],
+      // 투표자 이름 (applicants.name)
+      ['voter_name', TEXT, null],
+      // 날짜투표: 선택한 option_id들을 콤마 구분, 참석투표: 'attend'|'absent'|'undecided'
+      ['selected_options', TEXT, null],
+      ['voted_at', TEXT, null],
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
