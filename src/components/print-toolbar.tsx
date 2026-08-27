@@ -11,7 +11,13 @@ import { useEffect, useState } from "react";
  * 사진이 다 받아지기 전에 인쇄 창을 띄우면 종이에 빈 칸이 찍힌다.
  * 이미지 로딩이 끝날 때까지 인쇄 버튼을 잠가 둔다.
  */
-export function PrintToolbar({ activityId }: { activityId: string }) {
+export function PrintToolbar({
+  backHref,
+  backLabel = "← 돌아가기",
+}: {
+  backHref: string;
+  backLabel?: string;
+}) {
   const [imagesReady, setImagesReady] = useState(false);
 
   useEffect(() => {
@@ -56,10 +62,10 @@ export function PrintToolbar({ activityId }: { activityId: string }) {
     <div className="no-print sticky top-0 z-10 border-b border-line bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-[200mm] flex-wrap items-center gap-3 px-5 py-3">
         <Link
-          href={`/activities/${activityId}`}
+          href={backHref}
           className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink-soft hover:border-brand-blue/50"
         >
-          ← 상세로
+          {backLabel}
         </Link>
 
         <button

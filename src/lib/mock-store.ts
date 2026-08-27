@@ -66,18 +66,32 @@ function seedStore(): Store {
     }),
   ];
 
-  return {
-    settings,
-    applicants,
-    members: [],
-    activities: [],
-    activity_participants: [],
-    budget_items: [],
-    activity_logs: [],
-    photos: [],
-    audit_logs: [],
-  };
+  /*
+   * 시트를 하나라도 빠뜨리면 그 기능만 조용히 깨진다. 실제 스프레드시트를
+   * 만드는 setup/sheets-setup.gs 의 시트 목록과 반드시 같아야 한다.
+   */
+  const store: Store = { settings, applicants };
+  for (const sheetName of EMPTY_SHEETS) {
+    store[sheetName] = [];
+  }
+
+  return store;
 }
+
+/** settings, applicants 를 뺀 나머지 시트. 처음에는 비어 있다. */
+const EMPTY_SHEETS = [
+  "members",
+  "activities",
+  "activity_participants",
+  "budget_items",
+  "activity_logs",
+  "photos",
+  "audit_logs",
+  "reports",
+  "polls",
+  "poll_options",
+  "poll_votes",
+] as const;
 
 function row(key: string, value: string, valueType: string): SheetRow {
   return {
@@ -132,7 +146,22 @@ function load(): Store {
 
   try {
     const raw = readFileSync(STORE_PATH, "utf-8");
-    return JSON.parse(raw) as Store;
+    const stored = JSON.parse(raw) as Store;
+
+    /*
+     * 예전에 만들어진 저장 파일에는 나중에 추가된 시트가 없다.
+     * 그대로 쓰면 그 시트를 읽는 기능만 조용히 깨지므로 빈 배열로 채운다.
+     */
+    let added = false;
+    for (const sheetName of EMPTY_SHEETS) {
+      if (!stored[sheetName]) {
+        stored[sheetName] = [];
+        added = true;
+      }
+    }
+    if (added) save(stored);
+
+    return stored;
   } catch (error) {
     console.error("[mock-store] 저장 파일을 읽지 못해 초기값으로 되돌립니다.", error);
     const initial = seedStore();

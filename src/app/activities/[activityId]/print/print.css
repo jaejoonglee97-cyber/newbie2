@@ -1,9 +1,9 @@
 /*
- * 활동일지 A4 인쇄 스타일 (스키마 문서 6장)
+ * A4 인쇄 스타일. 활동일지와 결과보고서가 함께 쓴다.
  *
- * 1페이지: 문서 제목, 작성자, 모임 일시·장소·주제, 모임 내용, 평가·소감,
- *          참여자 명단, 예산 사용내역
- * 2페이지 이후: 모임 사진과 설명. 사진이 많으면 자동으로 다음 페이지로 넘어간다.
+ * 배포된 한글 양식(☆동문회 활동 일지, ☆뉴비스쿨 동문회 활동결과보고서)의
+ * 생김새를 따른다. 양식은 항목 이름을 표의 왼쪽 열에 두고 값을 오른쪽 칸에
+ * 채우는 구조다. 그래서 제목을 표 밖으로 뽑지 않고 한 표 안에 유지한다.
  *
  * 화면용 요소(.no-print)는 인쇄 시 숨긴다.
  */
@@ -18,101 +18,278 @@
   width: 180mm;
   margin: 0 auto;
   background: #ffffff;
-  color: #111827;
-  font-size: 10.5pt;
-  line-height: 1.65;
+  color: #000000;
+  /* 양식이 한글(HWP) 문서라 본문 10pt 에 맞춘다. */
+  font-size: 10pt;
+  line-height: 1.6;
 }
 
-.sheet h1,
-.sheet h2,
-.sheet h3 {
-  color: #111827;
-}
+/* ── 문서 제목 ───────────────────────────────────────────────── */
 
+/*
+ * 양식의 제목은 가운데 정렬 굵은 글씨이고 밑줄이 없다.
+ * 예전에는 아래 선을 그었는데 양식과 달라 뺐다.
+ */
 .doc-title {
+  margin: 0 0 8mm;
   text-align: center;
-  font-size: 17pt;
+  font-size: 15pt;
   font-weight: 700;
+  line-height: 1.5;
   letter-spacing: -0.01em;
-  padding-bottom: 4mm;
-  border-bottom: 2px solid #111827;
-  margin-bottom: 6mm;
 }
 
-.section-title {
-  font-size: 11.5pt;
+/* 결과보고서 상단 로고. 양식과 같이 왼쪽에 둔다. */
+.doc-logo {
+  height: 11mm;
+  width: auto;
+  margin-bottom: 4mm;
+}
+
+/* 활동일지의 작성자 칸. 양식은 제목 아래 오른쪽에 작은 표로 둔다. */
+.author-line {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 3mm;
+}
+
+.author-line table {
+  border-collapse: collapse;
+  min-width: 60mm;
+}
+
+.author-line th,
+.author-line td {
+  border: 1px solid #000000;
+  padding: 1.5mm 3mm;
+  font-size: 10pt;
+}
+
+.author-line th {
+  background: #efefef;
   font-weight: 700;
-  margin: 6mm 0 2mm;
-  padding-bottom: 1.5mm;
-  border-bottom: 1px solid #9ca3af;
+  text-align: center;
+  white-space: nowrap;
+  width: 22mm;
 }
 
-/* 표 공통 */
-.grid-table {
+/* ── 양식 표 ─────────────────────────────────────────────────── */
+
+/*
+ * 양식의 표는 검은 실선 테두리에 항목 열만 회색이다.
+ * 항목 이름은 가운데 정렬한다.
+ */
+.form-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.grid-table th,
-.grid-table td {
-  border: 1px solid #6b7280;
+.form-table th,
+.form-table td {
+  border: 1px solid #000000;
   padding: 2mm 3mm;
   vertical-align: top;
   text-align: left;
+  word-break: break-word;
 }
 
-.grid-table th {
-  background: #f3f4f6;
+.form-table th {
+  background: #efefef;
   font-weight: 700;
-  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
 }
 
-.grid-table td.num {
+/* 값이 없어도 칸 높이를 유지해 양식의 빈 칸처럼 보이게 한다. */
+.form-table td.value {
+  white-space: pre-wrap;
+}
+
+/*
+ * 항목별 최소 칸 높이.
+ *
+ * 표의 td 에 준 height 는 최소 높이로 동작한다. 내용이 길면 칸이 늘어난다.
+ * 양식은 빈 서식이라 칸이 크지만, 그 높이를 그대로 쓰면 실제 값이 들어갔을 때
+ * 1페이지가 A4 인쇄 영역(267mm)을 넘어 양식의 페이지 구성이 깨진다.
+ * 내용이 적을 때 양식처럼 보일 만큼만 남기고 줄였다.
+ */
+.cell-lg {
+  height: 50mm;
+}
+
+.cell-md {
+  height: 28mm;
+}
+
+.cell-sm {
+  height: 18mm;
+}
+
+/* 가운데 정렬이 필요한 칸 */
+.form-table td.center {
+  text-align: center;
+}
+
+.form-table td.num {
   text-align: right;
   white-space: nowrap;
 }
 
-.grid-table tfoot td {
-  background: #f3f4f6;
+/* 표 안에 들어가는 목록형 표(참여자 명단, 예산 사용내역) */
+.inner-table {
+  width: 100%;
+  border-collapse: collapse;
+  /* 참여자가 20명대까지 늘어도 한 페이지에 담기도록 촘촘하게 둔다. */
+  font-size: 9pt;
+  line-height: 1.35;
+}
+
+.inner-table th,
+.inner-table td {
+  border: 1px solid #767676;
+  padding: 0.8mm 2mm;
+  text-align: left;
+}
+
+.inner-table th {
+  background: #f7f7f7;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.inner-table td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.inner-table td.center {
+  text-align: center;
+}
+
+.inner-table tfoot td {
+  background: #f7f7f7;
   font-weight: 700;
 }
 
-/* 긴 본문 영역 */
-.prose-box {
-  border: 1px solid #6b7280;
+/*
+ * 참여자가 많으면 명단을 2열로 나눈다. 22명을 한 줄씩 쌓으면 1페이지가
+ * A4 를 넘어 양식의 페이지 구성이 깨진다.
+ */
+.two-column-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2mm;
+  align-items: start;
+}
+
+/*
+ * 2열 모드용 축약 서식.
+ *
+ * 한 열의 폭이 약 58mm 뿐이라 기본 서식으로는 긴 소속기관명이 줄바꿈되어
+ * 행이 두 줄로 늘어난다. 글자와 여백을 줄여 한 줄에 담는다.
+ */
+.inner-table.compact {
+  font-size: 8pt;
+  line-height: 1.25;
+}
+
+.inner-table.compact th,
+.inner-table.compact td {
+  padding: 0.6mm 1.2mm;
+}
+
+/* 표 아래 합계 한 줄. 칸을 늘리지 않으려고 tfoot 대신 문장으로 둔다. */
+.list-summary {
+  margin: 1.5mm 0 0;
+  text-align: right;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+/* ── 결과보고서 번호 절 ───────────────────────────────────────── */
+
+/*
+ * 양식은 "1. 활동 개요" 처럼 번호와 제목만 두고 밑줄을 그리지 않는다.
+ * 안내 문구는 제목 아래 파란 작은 글씨다.
+ */
+.numbered-title {
+  margin: 7mm 0 2mm;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.numbered-title:first-child {
+  margin-top: 0;
+}
+
+.title-hint {
+  margin: 0 0 2mm;
+  padding-left: 2mm;
+  font-size: 9pt;
+  font-weight: 400;
+  color: #2b2bd4;
+  line-height: 1.5;
+}
+
+/* 번호 절의 본문 입력 영역 */
+.answer-box {
+  border: 1px solid #000000;
   padding: 3mm;
-  min-height: 30mm;
+  min-height: 32mm;
   white-space: pre-wrap;
 }
 
-/* 사진 */
+/* ── 사진 ────────────────────────────────────────────────────── */
+
+/*
+ * 활동일지 양식 2페이지는 "모임사진" 이라는 세로쓰기 항목 칸 옆에
+ * 사진이 들어가는 큰 칸이 있는 구조다.
+ */
+.vertical-label {
+  width: 14mm;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 700;
+  /* 한 글자씩 세로로 쌓는다. */
+  line-height: 1.5;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 5mm;
+  gap: 4mm;
 }
 
 .photo-item {
-  border: 1px solid #6b7280;
-  padding: 2mm;
+  break-inside: avoid;
 }
 
 .photo-item img {
   display: block;
   width: 100%;
-  height: 62mm;
+  height: 58mm;
   object-fit: contain;
-  background: #f9fafb;
+  background: #f7f7f7;
+  border: 1px solid #767676;
 }
 
 .photo-caption {
-  margin-top: 1.5mm;
+  margin-top: 1mm;
   font-size: 9pt;
-  color: #374151;
+  color: #333333;
   text-align: center;
 }
 
-/* 페이지 나누기 */
+.empty-note {
+  padding: 12mm 0;
+  text-align: center;
+  color: #666666;
+}
+
+/* ── 페이지 나누기 ───────────────────────────────────────────── */
+
 @media print {
   .no-print {
     display: none !important;
@@ -121,6 +298,8 @@
   .sheet {
     width: auto;
     margin: 0;
+    padding: 0;
+    box-shadow: none;
   }
 
   .print-page {
@@ -140,7 +319,7 @@
     display: table-header-group;
   }
 
-  /* 배경색이 빠지지 않게 한다. */
+  /* 회색 항목 열이 빠지지 않게 한다. */
   * {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
