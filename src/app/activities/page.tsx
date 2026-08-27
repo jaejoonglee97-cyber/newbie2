@@ -127,13 +127,28 @@ export default async function ActivitiesPage({
                     </p>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Link
                       href={`/activities/${activity.activityId}`}
                       className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-ink-soft hover:border-brand-blue/50"
                     >
                       상세
                     </Link>
+
+                    {/*
+                      수정은 상세 화면에도 있지만, 목록에서 바로 들어갈 수 있게
+                      여기에도 둔다. 삭제는 되돌릴 수 없어 목록에 두지 않는다.
+                      상세에서 무엇이 지워지는지 확인한 뒤에만 지울 수 있다.
+                    */}
+                    {role === "admin" ? (
+                      <Link
+                        href={`/activities/${activity.activityId}/edit`}
+                        className="rounded-lg border border-line px-4 py-2 text-sm font-semibold text-brand-blue hover:border-brand-blue/60"
+                      >
+                        수정
+                      </Link>
+                    ) : null}
+
                     <Link
                       href={`/activities/${activity.activityId}/print`}
                       target="_blank"
