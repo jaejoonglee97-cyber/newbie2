@@ -7,10 +7,24 @@ import { isMockMode } from "@/lib/repo";
 
 /** 활동일지 저장 */
 export async function POST(request: Request) {
-  // 활동일지는 로그인한 사람만 작성할 수 있다.
+  /*
+   * 활동일지는 운영자만 쓴다.
+   *
+   * 열람은 누구나 하지만 쓰기는 막는다. 로그인이 공유 비밀번호라 작성자 본인을
+   * 구분할 방법이 없어, 아무나 쓰게 두면 누가 넣은 기록인지 확인할 수 없다.
+   * 수정·삭제를 운영자로 제한한 것과 같은 이유다.
+   */
   const role = await getSessionRole();
+
   if (!role) {
     return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
+  }
+
+  if (role !== "admin") {
+    return NextResponse.json(
+      { ok: false, message: "활동일지 작성은 운영자만 할 수 있습니다." },
+      { status: 403 },
+    );
   }
 
   const payload = await readJsonObject(request);

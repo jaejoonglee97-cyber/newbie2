@@ -74,9 +74,9 @@ export function SiteNav({ role, current }: { role: Role | null; current?: NavTab
           {role ? null : <LockMark />}
         </Link>
 
+        {/* 투표는 로그인 없이 참여한다. 만들고 마감하는 것만 운영자가 한다. */}
         <Link href="/polls" className={linkClass(current === "polls")}>
           투표
-          {role ? null : <LockMark />}
         </Link>
 
         {role === "admin" ? (

@@ -18,7 +18,9 @@ export const metadata = {
 
 export default async function NewActivityPage() {
   const role = await getSessionRole();
-  if (!role) {
+
+  // 활동일지 작성은 운영자만 한다. API 에서도 같은 조건을 다시 확인한다.
+  if (role !== "admin") {
     redirect("/login?returnTo=%2Factivities%2Fnew");
   }
 

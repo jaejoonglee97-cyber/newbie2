@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-
 import { CreatePollForm } from "@/components/create-poll-form";
 import { PollCard } from "@/components/poll-card";
 import { SiteFooter } from "@/components/site-footer";
@@ -18,11 +16,14 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
+/**
+ * 동문회 투표.
+ *
+ * 로그인 없이 보고 투표할 수 있다. 투표를 만들고 마감·확정하는 것만
+ * 운영자가 한다.
+ */
 export default async function PollsPage() {
   const role = await getSessionRole();
-  if (!role) {
-    redirect("/login?returnTo=%2Fpolls");
-  }
 
   const [settings, entries, polls] = await Promise.all([
     getSettings(),

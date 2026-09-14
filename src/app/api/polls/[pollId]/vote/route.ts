@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 
-import { getSessionRole } from "@/lib/auth";
 import { castVote, getPollById } from "@/lib/poll-logs";
 
+/**
+ * 투표하기.
+ *
+ * 로그인을 요구하지 않는다. 모임 자리에서 링크만 받아 바로 참여할 수 있어야
+ * 한다는 판단이다. 투표를 만들고 마감·확정하는 것은 운영자만 한다.
+ *
+ * 다만 이름을 골라 투표하는 구조라, 링크가 외부로 새면 남의 이름으로 투표할
+ * 수 있다. 이름이 함께 보이므로 잘못 찍힌 표는 눈에 띄고, 운영자가 투표를
+ * 다시 열거나 마감해 정리할 수 있다.
+ */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ pollId: string }> },
 ) {
-  const role = await getSessionRole();
-  if (!role) {
-    return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });
-  }
-
   const { pollId } = await params;
 
   try {
