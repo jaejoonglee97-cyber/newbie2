@@ -188,9 +188,12 @@ export function ConstellationIntro({
               </button>
             </div>
           ) : (
-            <p className="text-sm text-white/45">
-              {stars.length}명이 같은 시기에 현장에 들어왔습니다.
-            </p>
+            /*
+              아무도 고르지 않았을 때는 비워 둔다.
+              안내는 성좌 위에 이미 있고, 여기에 문장을 하나 더 두면 군더더기다.
+              높이는 유지해 이름을 눌렀을 때 화면이 밀리지 않게 한다.
+            */
+            null
           )}
         </div>
       </div>

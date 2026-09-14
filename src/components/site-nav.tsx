@@ -6,7 +6,16 @@ import { useState } from "react";
 
 import type { Role } from "@/lib/auth";
 
-export type NavTab = "home" | "apply" | "plan" | "cards" | "activities" | "polls" | "admin";
+export type NavTab =
+  | "home"
+  | "apply"
+  | "plan"
+  | "worries"
+  | "feedback"
+  | "cards"
+  | "activities"
+  | "polls"
+  | "admin";
 
 /**
  * 사이트 전체 공통 이동 막대.
@@ -44,6 +53,15 @@ export function SiteNav({ role, current }: { role: Role | null; current?: NavTab
         {/* 개인정보가 없는 프로그램 안내이므로 잠금 표시를 붙이지 않는다. */}
         <Link href="/plan" className={linkClass(current === "plan")}>
           활동 계획
+        </Link>
+
+        {/* 익명 참여 활동이라 로그인을 요구하지 않는다. 잠금 표시도 붙이지 않는다. */}
+        <Link href="/worries" className={linkClass(current === "worries")}>
+          고민 나눔
+        </Link>
+
+        <Link href="/feedback" className={linkClass(current === "feedback")}>
+          만족도
         </Link>
 
         <Link href="/cards" className={linkClass(current === "cards")}>

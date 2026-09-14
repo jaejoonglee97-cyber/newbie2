@@ -91,6 +91,10 @@ const EMPTY_SHEETS = [
   "polls",
   "poll_options",
   "poll_votes",
+  "worry_boards",
+  "worries",
+  "worry_replies",
+  "feedback",
 ] as const;
 
 function row(key: string, value: string, valueType: string): SheetRow {

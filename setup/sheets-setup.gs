@@ -285,6 +285,69 @@ var SHEETS = [
       ['voted_at', TEXT, null],
     ],
   },
+  {
+    // 익명 고민 나눔 보드 하나 (회기별로 만든다)
+    name: 'worry_boards',
+    columns: [
+      ['board_id', TEXT, null],
+      ['program_id', TEXT, null],
+      ['title', TEXT, null],
+      ['description', null, null],
+      // writing = 고민 작성, replying = 팀별 답변, sharing = 함께 보기, closed = 마감
+      ['phase', TEXT, ['writing', 'replying', 'sharing', 'closed']],
+      ['team_count', NUMBER, null],
+      ['created_at', TEXT, null],
+      ['updated_at', TEXT, null],
+    ],
+  },
+  {
+    /*
+     * 익명으로 작성한 고민.
+     *
+     * 작성자를 알 수 있는 컬럼을 두지 않는다. 이름·연락처는 물론이고
+     * 작성 시각도 날짜까지만 남긴다. 분·초가 있으면 같은 자리에서 동시에
+     * 작성했을 때 누가 썼는지 짐작할 수 있다.
+     */
+    name: 'worries',
+    columns: [
+      ['worry_id', TEXT, null],
+      ['board_id', TEXT, null],
+      ['category', TEXT, ['개인', '회사']],
+      ['content', null, null],
+      // 팀 배정 전에는 0
+      ['team_number', NUMBER, null],
+      ['created_on', DATE, null],
+    ],
+  },
+  {
+    // 고민에 붙이는 익명 포스트잇 답변
+    name: 'worry_replies',
+    columns: [
+      ['reply_id', TEXT, null],
+      ['worry_id', TEXT, null],
+      ['content', null, null],
+      ['created_on', DATE, null],
+    ],
+  },
+  {
+    /*
+     * 회차별 만족도 조사. 익명이다.
+     *
+     * 이름을 붙이면 아쉬웠던 점을 솔직히 쓰기 어렵다. 작성자를 알 수 있는
+     * 컬럼을 두지 않고 작성 시각도 날짜까지만 남긴다.
+     */
+    name: 'feedback',
+    columns: [
+      ['feedback_id', TEXT, null],
+      ['program_id', TEXT, null],
+      ['session_number', NUMBER, null],
+      // 1~5 점
+      ['score', NUMBER, ['1', '2', '3', '4', '5']],
+      ['best_part', null, null],
+      ['next_wish', null, null],
+      ['created_on', DATE, null],
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
