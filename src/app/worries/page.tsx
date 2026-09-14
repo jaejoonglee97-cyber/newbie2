@@ -3,7 +3,9 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
 import { WorryBoard } from "@/components/worry-board";
+import { LoadFailureNotice } from "@/components/load-failure-notice";
 import { getSessionRole } from "@/lib/auth";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 import { getActiveBoardView } from "@/lib/worry-logs";
@@ -37,7 +39,7 @@ export default async function WorriesPage({
   ]);
 
   const selectedTeam = Math.max(0, Math.trunc(Number(query.team) || 0));
-  const view = await getActiveBoardView(selectedTeam);
+  const board = await loadOr("고민 나눔", null, () => getActiveBoardView(selectedTeam));
   const isAdmin = role === "admin";
 
   return (
@@ -56,8 +58,10 @@ export default async function WorriesPage({
           </p>
         ) : null}
 
-        {view ? (
-          <WorryBoard view={view} isAdmin={isAdmin} selectedTeam={selectedTeam} />
+        {board.failed ? (
+          <LoadFailureNotice what="고민 나눔" />
+        ) : board.data ? (
+          <WorryBoard view={board.data} isAdmin={isAdmin} selectedTeam={selectedTeam} />
         ) : (
           <EmptyState isAdmin={isAdmin} />
         )}

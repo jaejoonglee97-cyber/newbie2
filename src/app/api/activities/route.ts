@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { saveActivityLog, validateActivityLog } from "@/lib/activity-logs";
 import { getSessionRole } from "@/lib/auth";
+import { setupHint } from "@/lib/load";
 import { parsePhotos, readJsonObject } from "@/lib/photo-payload";
 import { isMockMode } from "@/lib/repo";
 
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       {
         ok: false,
         message:
+          setupHint(error) ??
           "저장 중 오류가 발생했습니다. 입력 내용을 복사해 두시고 잠시 후 다시 시도해 주세요.",
       },
       { status: 500 },

@@ -2,8 +2,10 @@ import { FeedbackForm } from "@/components/feedback-form";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
+import { LoadFailureNotice } from "@/components/load-failure-notice";
 import { getSessionRole } from "@/lib/auth";
 import { getFeedbackView } from "@/lib/feedback-logs";
+import { loadOr } from "@/lib/load";
 import { SCORE_LABELS, type SatisfactionScore, type SessionFeedback } from "@/lib/feedback-types";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
@@ -24,7 +26,15 @@ export const metadata = {
 export default async function FeedbackPage() {
   const [settings, role] = await Promise.all([getSettings(), getSessionRole()]);
   const isAdmin = role === "admin";
-  const view = await getFeedbackView(isAdmin);
+
+  /*
+   * 회차 목록을 못 읽어도 폼은 띄운다. 회차를 못 고르는 것뿐이고,
+   * 만족도 화면 자체가 안 열릴 이유는 없다.
+   */
+  const loaded = await loadOr("만족도 응답", { sessions: [], summaries: [], totalCount: 0 }, () =>
+    getFeedbackView(isAdmin),
+  );
+  const view = loaded.data;
 
   return (
     <>
@@ -46,6 +56,12 @@ export default async function FeedbackPage() {
             <strong className="font-bold">검증 모드</strong> · 실제 스프레드시트에 저장되지
             않습니다.
           </p>
+        ) : null}
+
+        {loaded.failed ? (
+          <div className="mt-6">
+            <LoadFailureNotice what="지난 회차 목록" />
+          </div>
         ) : null}
 
         <div className="mt-8">

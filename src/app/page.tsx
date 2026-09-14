@@ -7,6 +7,7 @@ import { SiteNav } from "@/components/site-nav";
 import { PollCard } from "@/components/poll-card";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 import { getActivePoll } from "@/lib/poll-logs";
@@ -21,11 +22,17 @@ export const dynamic = "force-dynamic";
  * 바로 보이는 것이 이 페이지의 목적이다.
  */
 export default async function AlumniHomePage() {
+  /*
+   * 한 조각이 안 읽혀도 나머지는 보여 준다.
+   *
+   * 이름이 안 읽히면 성좌가 빈 채로 나올 뿐이고, 투표가 안 읽히면 그 칸만
+   * 빠진다. 어느 쪽도 화면 전체를 막을 이유가 없다.
+   */
   const [settings, role, entries, activePoll] = await Promise.all([
     getSettings(),
     getSessionRole(),
-    listCardEntries(),
-    getActivePoll().catch(() => null),
+    loadOr("참여자 명단", [], listCardEntries),
+    loadOr("진행 중 투표", null, getActivePoll),
   ]);
 
   /*
@@ -37,13 +44,13 @@ export default async function AlumniHomePage() {
    * 소속기관·직책·기대하는 점·연락처는 애초에 넘기지 않는다.
    */
   const canSeeIntroduction = role !== null;
-  const stars = entries.map((entry) => ({
+  const stars = entries.data.map((entry) => ({
     name: entry.name,
     introduction: canSeeIntroduction ? entry.introduction : "",
   }));
 
   // 투표 참여자 이름 목록 (로그인한 경우에만)
-  const memberNames = role ? entries.map((e) => e.name).filter(Boolean) : [];
+  const memberNames = role ? entries.data.map((e) => e.name).filter(Boolean) : [];
 
   return (
     <>
@@ -58,13 +65,13 @@ export default async function AlumniHomePage() {
           <MemberAreaGuide role={role} teamChatName={settings.teamChatName} />
 
           {/* 진행 중인 투표가 있고 로그인된 경우에만 보여준다 */}
-          {role && activePoll ? (
+          {role && activePoll.data ? (
             <section aria-labelledby="poll-section">
               <h2 id="poll-section" className="mb-4 text-lg font-bold text-navy">
                 🗳️ 현재 진행 중인 투표
               </h2>
               <PollCard
-                result={activePoll}
+                result={activePoll.data}
                 memberNames={memberNames}
                 isAdmin={role === "admin"}
               />

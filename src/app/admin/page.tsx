@@ -1,12 +1,15 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { LoadFailureNotice } from "@/components/load-failure-notice";
 import { listApplicantRecords } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getRecruitmentStatus, getSettings } from "@/lib/settings";
 import type { ApplicantRecord } from "@/lib/types";
@@ -28,7 +31,11 @@ export default async function AdminPage() {
   }
 
   // 투표는 /polls 챕터에서 관리한다. 여기서는 신청자 명단만 다룬다.
-  const [settings, records] = await Promise.all([getSettings(), listApplicantRecords()]);
+  const [settings, loaded] = await Promise.all([
+    getSettings(),
+    loadOr("신청자 명단", [], listApplicantRecords),
+  ]);
+  const records = loaded.data;
   const status = getRecruitmentStatus(settings);
 
   // 별도 승인 절차가 없다. 신청하면 그대로 참여 확정이므로, 운영자가 직접
@@ -57,6 +64,12 @@ export default async function AdminPage() {
           >
             <strong className="font-bold">검증 모드</strong> · 가상 인물 데이터입니다.
           </p>
+        ) : null}
+
+        {loaded.failed ? (
+          <div className="mt-6">
+            <LoadFailureNotice what="신청자 명단" />
+          </div>
         ) : null}
 
         <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -121,6 +134,14 @@ export default async function AdminPage() {
         </div>
 
         <ExpectationDigest records={records} />
+
+        <p className="mt-12 text-sm text-ink-muted">
+          화면이 안 열리거나 저장이 안 되면{" "}
+          <Link href="/admin/diagnostics" className="font-semibold text-brand-blue underline">
+            연결 점검
+          </Link>{" "}
+          화면에서 원인을 확인할 수 있습니다.
+        </p>
       </main>
 
       <SiteFooter settings={settings} />

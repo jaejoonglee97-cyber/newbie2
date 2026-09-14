@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getSessionRole } from "@/lib/auth";
+import { setupHint } from "@/lib/load";
 import { readJsonObject } from "@/lib/photo-payload";
 import { isMockMode } from "@/lib/repo";
 import { createBoard, validateCreateBoard } from "@/lib/worry-logs";
@@ -39,7 +40,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("[worries] 보드 생성 실패", error);
     return NextResponse.json(
-      { ok: false, message: "보드를 만들지 못했습니다. 잠시 후 다시 시도해 주세요." },
+      {
+        ok: false,
+        message: setupHint(error) ?? "보드를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      },
       { status: 500 },
     );
   }

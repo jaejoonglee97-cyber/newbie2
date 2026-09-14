@@ -3,8 +3,10 @@ import { PollCard } from "@/components/poll-card";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
+import { LoadFailureNotice } from "@/components/load-failure-notice";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
+import { loadOr } from "@/lib/load";
 import { listPolls } from "@/lib/poll-logs";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
@@ -25,13 +27,14 @@ export const metadata = {
 export default async function PollsPage() {
   const role = await getSessionRole();
 
-  const [settings, entries, polls] = await Promise.all([
+  const [settings, entries, loaded] = await Promise.all([
     getSettings(),
-    listCardEntries(),
-    listPolls().catch(() => []),
+    loadOr("참여자 명단", [], listCardEntries),
+    loadOr("투표", [], listPolls),
   ]);
 
-  const memberNames = entries.map((e) => e.name).filter(Boolean);
+  const memberNames = entries.data.map((e) => e.name).filter(Boolean);
+  const polls = loaded.data;
   const activePolls = polls.filter((p) => p.poll.status !== "closed");
   const closedPolls = polls.filter((p) => p.poll.status === "closed");
 
@@ -73,7 +76,9 @@ export default async function PollsPage() {
             📌 진행 중인 투표 ({activePolls.length})
           </h2>
 
-          {activePolls.length === 0 ? (
+          {loaded.failed ? (
+            <LoadFailureNotice what="투표" />
+          ) : activePolls.length === 0 ? (
             <div className="rounded-[14px] border border-line bg-surface p-8 text-center text-ink-muted">
               현재 진행 중인 투표가 없습니다.
             </div>

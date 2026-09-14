@@ -38,7 +38,20 @@ const DEFAULTS: ProgramSettings = {
 export const getSettings = cache(loadSettings);
 
 async function loadSettings(): Promise<ProgramSettings> {
-  const rows = await readSheet("settings");
+  /*
+   * 설정을 못 읽어도 기본값으로 화면을 띄운다.
+   *
+   * 이 값은 머리말·꼬리말이 쓰므로 모든 화면이 부른다. 여기서 예외가 나면
+   * 시트와 상관없는 화면까지 전부 막힌다. 기수·연락처가 잠깐 기본값으로
+   * 나오는 편이 사이트 전체가 안 열리는 것보다 낫다.
+   */
+  let rows;
+  try {
+    rows = await readSheet("settings");
+  } catch (error) {
+    console.error("[settings] 설정을 읽지 못해 기본값을 사용합니다:", error);
+    return { ...DEFAULTS };
+  }
 
   const map = new Map<string, string>();
   for (const row of rows) {

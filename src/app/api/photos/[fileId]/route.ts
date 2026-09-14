@@ -15,6 +15,18 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ fileId: string }> },
 ) {
+  try {
+    return await serve(params);
+  } catch (error) {
+    console.error("[활동 사진] 전달 실패:", error);
+    return NextResponse.json(
+      { ok: false, message: "이미지를 불러오지 못했습니다." },
+      { status: 500 },
+    );
+  }
+}
+
+async function serve(params: Promise<{ fileId: string }>) {
   const role = await getSessionRole();
   if (!role) {
     return NextResponse.json({ ok: false, message: "로그인이 필요합니다." }, { status: 401 });

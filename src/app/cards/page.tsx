@@ -4,8 +4,10 @@ import { CardGallery } from "@/components/card-gallery";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { LoadFailureNotice } from "@/components/load-failure-notice";
 import { listCardEntries } from "@/lib/applicants";
 import { getSessionRole } from "@/lib/auth";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 
@@ -22,7 +24,11 @@ export default async function CardsPage() {
     redirect("/login?returnTo=%2Fcards");
   }
 
-  const [settings, entries] = await Promise.all([getSettings(), listCardEntries()]);
+  const [settings, loaded] = await Promise.all([
+    getSettings(),
+    loadOr("명함집", [], listCardEntries),
+  ]);
+  const entries = loaded.data;
   const withCard = entries.filter((entry) => entry.cardImagePath);
 
   return (
@@ -37,8 +43,14 @@ export default async function CardsPage() {
               뉴비스쿨 {settings.cohort}기 명함집
             </h1>
             <p className="mt-3 max-w-2xl leading-relaxed text-ink-soft">
-              교육에서 명함을 나누지 못한 분들을 위해 모았습니다. 총 {entries.length}명, 명함
-              등록 {withCard.length}건입니다.
+              교육에서 명함을 나누지 못한 분들을 위해 모았습니다.
+              {/* 못 읽었을 때 0명이라고 적으면 아무도 없는 것처럼 읽힌다. */}
+              {loaded.failed ? null : (
+                <>
+                  {" "}
+                  총 {entries.length}명, 명함 등록 {withCard.length}건입니다.
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -58,7 +70,11 @@ export default async function CardsPage() {
           않습니다.
         </p>
 
-        {entries.length === 0 ? (
+        {loaded.failed ? (
+          <div className="mt-10">
+            <LoadFailureNotice what="명함집" />
+          </div>
+        ) : entries.length === 0 ? (
           <p className="mt-10 rounded-[14px] border border-line bg-surface px-6 py-12 text-center text-ink-muted">
             아직 등록된 참여자가 없습니다.
           </p>

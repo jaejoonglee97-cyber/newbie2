@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { SiteNav } from "@/components/site-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { LoadFailureNotice } from "@/components/load-failure-notice";
 import { getBudgetSummary, listActivities } from "@/lib/activity-logs";
 import { getSessionRole } from "@/lib/auth";
 import { formatDateShort, formatWon } from "@/lib/format";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 
@@ -27,12 +29,15 @@ export default async function ActivitiesPage({
     redirect("/login?returnTo=%2Factivities");
   }
 
-  const [settings, activities, budget, query] = await Promise.all([
+  const [settings, loaded, budgetLoaded, query] = await Promise.all([
     getSettings(),
-    listActivities(),
-    getBudgetSummary(),
+    loadOr("활동 기록", [], listActivities),
+    loadOr("예산 집계", null, getBudgetSummary),
     searchParams,
   ]);
+
+  const activities = loaded.data;
+  const budget = budgetLoaded.data;
 
   return (
     <>
@@ -91,20 +96,30 @@ export default async function ActivitiesPage({
           </p>
         ) : null}
 
-        <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="총 지원금" value={formatWon(budget.totalBudget)} />
-          <Stat label="완료 활동 사용액" value={formatWon(budget.confirmedSpent)} />
-          <Stat label="승인 예정액" value={formatWon(budget.reserved)} />
-          <Stat
-            label="잔액"
-            value={formatWon(budget.remaining)}
-            detail={`가용 ${formatWon(budget.available)}`}
-          />
-        </dl>
+        {budget ? (
+          <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Stat label="총 지원금" value={formatWon(budget.totalBudget)} />
+            <Stat label="완료 활동 사용액" value={formatWon(budget.confirmedSpent)} />
+            <Stat label="승인 예정액" value={formatWon(budget.reserved)} />
+            <Stat
+              label="잔액"
+              value={formatWon(budget.remaining)}
+              detail={`가용 ${formatWon(budget.available)}`}
+            />
+          </dl>
+        ) : (
+          <div className="mt-8">
+            <LoadFailureNotice what="예산 집계" />
+          </div>
+        )}
 
         <h2 className="mt-12 text-lg font-bold text-navy">회기 목록</h2>
 
-        {activities.length === 0 ? (
+        {loaded.failed ? (
+          <div className="mt-10">
+            <LoadFailureNotice what="활동 기록" />
+          </div>
+        ) : activities.length === 0 ? (
           <p className="mt-4 rounded-[14px] border border-line bg-surface px-6 py-12 text-center text-ink-muted">
             아직 기록된 활동이 없습니다. 첫 회기 활동일지를 작성해 보세요.
           </p>

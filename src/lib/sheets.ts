@@ -51,20 +51,75 @@ async function authorizedFetch(path: string, init?: RequestInit): Promise<Respon
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Sheets API 오류 ${response.status}: ${body.slice(0, 500)}`);
+    throw new SheetsApiError(response.status, body.slice(0, 500), path);
   }
 
   return response;
 }
 
-/** 시트 전체를 2차원 배열로 읽는다. 첫 행은 헤더다. */
+export class SheetsApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+    readonly path: string,
+  ) {
+    super(`Sheets API 오류 ${status}: ${body}`);
+    this.name = "SheetsApiError";
+  }
+
+  /**
+   * 스프레드시트에 그 이름의 시트가 아직 없을 때인지.
+   *
+   * Sheets API 는 없는 시트를 읽으면 400 과 "Unable to parse range" 를 준다.
+   * 권한이나 네트워크 문제와 구분해야 한다.
+   */
+  get isMissingSheet(): boolean {
+    return this.status === 400 && /Unable to parse range/i.test(this.body);
+  }
+}
+
+/**
+ * 시트 전체를 2차원 배열로 읽는다. 첫 행은 헤더다.
+ *
+ * 아직 만들지 않은 시트를 읽으면 빈 배열을 돌려준다.
+ *
+ * 기능을 새로 붙이면 시트가 한 개씩 늘어나는데, setupAll 을 다시 돌리기 전까지는
+ * 그 시트가 없다. 이때 예외를 그대로 올리면 그 시트와 상관없는 화면까지 통째로
+ * 500 이 된다. 없는 시트는 "아직 자료가 없음" 으로 다루고, 권한·네트워크 같은
+ * 진짜 오류만 올린다.
+ */
 async function readRawRows(sheetName: string): Promise<string[][]> {
   const range = encodeURIComponent(`${sheetName}!A1:ZZ`);
-  const response = await authorizedFetch(
-    `/values/${range}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`,
-  );
-  const data = (await response.json()) as { values?: string[][] };
-  return data.values ?? [];
+
+  try {
+    const response = await authorizedFetch(
+      `/values/${range}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`,
+    );
+    const data = (await response.json()) as { values?: string[][] };
+    return data.values ?? [];
+  } catch (error) {
+    if (error instanceof SheetsApiError && error.isMissingSheet) {
+      console.warn(
+        `[sheets] ${sheetName} 시트가 없습니다. setup/sheets-setup.gs 의 setupAll 을 실행하세요.`,
+      );
+      return [];
+    }
+    throw error;
+  }
+}
+
+/**
+ * 저장하려는 시트가 아직 만들어지지 않았을 때.
+ *
+ * 운영자에게는 무엇을 해야 하는지 그대로 보여 줘야 하는 오류라 따로 구분한다.
+ */
+export class SetupRequiredError extends Error {
+  constructor(readonly sheetName: string) {
+    super(
+      `${sheetName} 시트가 아직 없습니다. 스프레드시트에서 확장 프로그램 > Apps Script 를 열어 setupAll 을 한 번 실행해 주세요.`,
+    );
+    this.name = "SetupRequiredError";
+  }
 }
 
 export type SheetRow = Record<string, string>;
@@ -99,12 +154,25 @@ export async function readSheet(sheetName: string): Promise<SheetRow[]> {
   });
 }
 
-/** 시트의 헤더 순서를 그대로 읽는다. append 시 컬럼 정렬에 사용한다. */
+/**
+ * 시트의 헤더 순서를 그대로 읽는다. append 시 컬럼 정렬에 사용한다.
+ *
+ * 읽기와 달리 쓰기는 조용히 넘어가면 안 된다. 시트가 없으면 무엇을 해야 하는지
+ * 알려 주는 문구로 바꿔 올린다.
+ */
 export async function readHeaders(sheetName: string): Promise<string[]> {
   const range = encodeURIComponent(`${sheetName}!A1:ZZ1`);
-  const response = await authorizedFetch(`/values/${range}?majorDimension=ROWS`);
-  const data = (await response.json()) as { values?: string[][] };
-  return (data.values?.[0] ?? []).map((h) => String(h ?? "").trim());
+
+  try {
+    const response = await authorizedFetch(`/values/${range}?majorDimension=ROWS`);
+    const data = (await response.json()) as { values?: string[][] };
+    return (data.values?.[0] ?? []).map((h) => String(h ?? "").trim());
+  } catch (error) {
+    if (error instanceof SheetsApiError && error.isMissingSheet) {
+      throw new SetupRequiredError(sheetName);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -184,6 +252,24 @@ async function findRows(
 
 /** 시트 이름 → sheetId(gid). 행 삭제 API 는 이름이 아니라 gid 를 받는다. */
 let cachedSheetIds: Map<string, number> | null = null;
+
+/**
+ * 스프레드시트에 실제로 있는 시트 이름 목록.
+ *
+ * "시트가 없어서 비어 있다"와 "시트는 있는데 자료가 없다"를 구분하려면
+ * 필요하다. 진단 화면에서 쓴다.
+ */
+export async function listSheetTitles(): Promise<string[]> {
+  const response = await authorizedFetch("?fields=sheets.properties(sheetId,title)");
+  const data = (await response.json()) as {
+    sheets?: { properties?: { title?: string } }[];
+  };
+
+  return (data.sheets ?? []).flatMap((sheet) => {
+    const title = sheet.properties?.title;
+    return title ? [title] : [];
+  });
+}
 
 async function getSheetId(sheetName: string): Promise<number> {
   if (!cachedSheetIds?.has(sheetName)) {
