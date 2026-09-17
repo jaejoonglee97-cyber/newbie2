@@ -4,20 +4,22 @@ import { getSessionRole } from "@/lib/auth";
 import { readJsonObject } from "@/lib/photo-payload";
 import { isMockMode } from "@/lib/repo";
 import {
-  assignTeams,
   deleteReply,
   deleteWorry,
+  drawWorry,
   getBoardView,
   setPhase,
+  undoDraw,
 } from "@/lib/worry-logs";
 import type { WorryPhase } from "@/lib/worry-types";
 
-const PHASES: WorryPhase[] = ["writing", "replying", "sharing", "closed"];
+const PHASES: WorryPhase[] = ["writing", "drawing", "sharing", "closed"];
 
 /**
- * 보드 운영. 단계 전환, 팀 배정, 글 삭제.
+ * 보드 운영. 단계 전환, 고민 뽑기, 글 삭제.
  *
- * 모두 운영자만 할 수 있다. 참여자가 단계를 바꾸면 아직 쓰는 중인 사람의
+ * 모두 운영자만 할 수 있다. 참여자가 마음대로 뽑으면 사람마다 다른 고민이
+ * 떠서 다 같이 이야기할 수가 없고, 단계를 바꾸면 아직 쓰는 중인 사람의
  * 고민이 공개되어 버린다.
  */
 export async function PATCH(
@@ -60,17 +62,29 @@ export async function PATCH(
       return NextResponse.json({ ok: true, phase, mock: isMockMode() });
     }
 
-    if (action === "assignTeams") {
-      const teamCount = Math.trunc(Number(payload.teamCount));
-      if (!Number.isFinite(teamCount) || teamCount < 1 || teamCount > 10) {
+    if (action === "draw") {
+      if (board.board.phase !== "drawing") {
         return NextResponse.json(
-          { ok: false, message: "팀 수는 1에서 10 사이로 정해 주세요." },
-          { status: 422 },
+          { ok: false, message: "뽑기 단계에서만 뽑을 수 있습니다." },
+          { status: 409 },
         );
       }
 
-      const result = await assignTeams(boardId, teamCount);
-      return NextResponse.json({ ok: true, ...result, teamCount, mock: isMockMode() });
+      const result = await drawWorry(boardId);
+      if (!result.drawn) {
+        return NextResponse.json({ ok: false, message: "항아리가 비었습니다." });
+      }
+
+      return NextResponse.json({ ok: true, remaining: result.remaining, mock: isMockMode() });
+    }
+
+    if (action === "undoDraw") {
+      const result = await undoDraw(boardId);
+      if (!result.undone) {
+        return NextResponse.json({ ok: false, message: "되돌릴 것이 없습니다." });
+      }
+
+      return NextResponse.json({ ok: true, mock: isMockMode() });
     }
 
     if (action === "deleteWorry") {

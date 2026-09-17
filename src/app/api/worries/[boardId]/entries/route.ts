@@ -49,11 +49,29 @@ export async function POST(
     );
   }
 
-  if (kind === "reply" && phase !== "replying" && phase !== "sharing") {
+  if (kind === "reply" && phase !== "drawing" && phase !== "sharing") {
     return NextResponse.json(
-      { ok: false, message: "지금은 답변을 받는 단계가 아닙니다." },
+      { ok: false, message: "지금은 포스트잇을 받는 단계가 아닙니다." },
       { status: 409 },
     );
+  }
+
+  /*
+   * 뽑기 단계에서는 지금 뽑혀 있는 고민에만 붙일 수 있다.
+   *
+   * worryId 를 손으로 바꿔 보내면 아직 항아리에 있는 고민의 존재를 확인할 수
+   * 있다. 항아리에 남은 고민은 아무에게도 보이지 않아야 한다.
+   */
+  if (kind === "reply" && phase === "drawing") {
+    const target = typeof payload.worryId === "string" ? payload.worryId : "";
+    const drawn = view.worries.some((worry) => worry.worryId === target);
+
+    if (!drawn) {
+      return NextResponse.json(
+        { ok: false, message: "아직 뽑히지 않은 고민입니다." },
+        { status: 409 },
+      );
+    }
   }
 
   try {

@@ -8,7 +8,7 @@ import { isMockMode } from "@/lib/repo";
 /**
  * 만족도 응답 남기기.
  *
- * 고민 나눔과 같이 로그인을 요구하지 않는다. 이름을 묻지 않아야 아쉬웠던 점을
+ * 고민 항아리와 같이 로그인을 요구하지 않는다. 이름을 묻지 않아야 아쉬웠던 점을
  * 솔직히 쓸 수 있고, 로그인을 붙이면 서버가 누가 냈는지 알게 된다.
  */
 export async function POST(request: Request) {

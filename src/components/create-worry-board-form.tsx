@@ -3,12 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
 
-/** 운영자가 고민 나눔 보드를 연다. 열면 바로 1단계(고민 적기)로 시작한다. */
+/** 진행자가 고민 항아리를 연다. 열면 바로 1단계(항아리 채우기)로 시작한다. */
 export function CreateWorryBoardForm() {
   const router = useRouter();
   const formId = useId();
 
-  const [title, setTitle] = useState("1회기 고민 나눔");
+  const [title, setTitle] = useState("1회기 고민 항아리");
   const [description, setDescription] = useState(
     "개인 고민 1가지, 회사 고민 1가지를 익명으로 남겨 주세요.",
   );
@@ -52,17 +52,17 @@ export function CreateWorryBoardForm() {
       className="rounded-[14px] border border-brand-blue/30 bg-brand-blue/5 p-6 sm:p-7"
     >
       <h2 id="create-worry-board" className="text-base font-bold text-navy">
-        운영자 · 고민 나눔 열기
+        진행자 · 고민 항아리 열기
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-ink-soft">
-        열면 바로 고민 적기 단계로 시작합니다. 참여자는 로그인 없이 이 주소로 들어와 적을 수
-        있습니다.
+        열면 바로 항아리 채우기 단계로 시작합니다. 참여자는 로그인 없이 이 주소로 들어와
+        고민을 넣을 수 있습니다.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         <div>
           <label htmlFor={`${formId}-title`} className="text-sm font-bold text-ink">
-            제목
+            항아리 이름
           </label>
           <input
             id={`${formId}-title`}
@@ -99,7 +99,7 @@ export function CreateWorryBoardForm() {
           disabled={submitting || title.trim().length < 2}
           className="rounded-lg bg-brand-blue px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-brand-blue-hover disabled:cursor-not-allowed disabled:bg-ink-muted"
         >
-          {submitting ? "여는 중..." : "고민 나눔 열기"}
+          {submitting ? "여는 중..." : "고민 항아리 열기"}
         </button>
       </form>
     </section>

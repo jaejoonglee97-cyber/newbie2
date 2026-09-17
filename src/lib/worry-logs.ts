@@ -16,12 +16,17 @@ import type {
   WorryCard,
   WorryCategory,
   WorryPhase,
+  WorryPulse,
   WorryReply,
 } from "./worry-types";
 import { REPLY_MAX_LENGTH, WORRY_CATEGORIES, WORRY_MAX_LENGTH } from "./worry-types";
 
 /**
- * 익명 고민 나눔 보드.
+ * 익명 고민 항아리.
+ *
+ * 적은 고민을 항아리에 넣어 두고, 진행자가 하나씩 무작위로 뽑는다. 뽑힌
+ * 고민을 놓고 다 같이 이야기하고, 거기에 익명 포스트잇을 붙인다.
+ * 한 번 뽑힌 고민은 항아리로 돌아가지 않으므로 모든 고민이 한 번씩 다뤄진다.
  *
  * 로그인 없이 누구나 참여한다. 그래서 개인정보를 아예 수집하지 않는다.
  * 이름, 접속 정보, 세션 식별자 어느 것도 저장하지 않으므로 서버가 누가 썼는지
@@ -29,10 +34,10 @@ import { REPLY_MAX_LENGTH, WORRY_CATEGORIES, WORRY_MAX_LENGTH } from "./worry-ty
  *
  * 다만 완전한 익명은 아니다. 시트는 append 로 쌓이므로 행 순서가 곧 작성
  * 순서다. 같은 자리에서 동시에 작성하면 순서만으로 짐작할 여지가 있다.
- * 그래서 두 가지를 더 한다.
+ * 그래서 세 가지를 더 한다.
  *   - 작성 시각을 날짜까지만 남긴다. 분·초가 있으면 짐작이 쉬워진다.
  *   - ID 를 순번이 아니라 무작위로 만든다. ID 로도 순서를 알 수 없게 한다.
- * 화면에서는 고민 ID 를 섞어 정렬해 행 순서가 그대로 드러나지 않게 한다.
+ *   - 뽑는 순서를 무작위로 해 화면에 나오는 순서가 작성 순서와 무관하게 한다.
  */
 
 const BOARDS = "worry_boards";
@@ -47,25 +52,18 @@ const REPLIES = "worry_replies";
  * 지금 쓰는 보드 하나를 가져온다.
  *
  * 단계에 따라 볼 수 있는 것만 담아 돌려준다. 감출 내용을 내려보낸 뒤 화면에서
- * 가리지 않는다. 작성 단계에서는 남의 고민이 응답에 아예 담기지 않는다.
- *
- * teamNumber 를 주면 그 팀에 배정된 고민만 담는다. 답변 단계에서 쓴다.
+ * 가리지 않는다. 항아리에 아직 남아 있는 고민은 응답에 아예 담기지 않는다.
  */
-export async function getActiveBoardView(
-  teamNumber?: number,
-): Promise<WorryBoardView | null> {
+export async function getActiveBoardView(): Promise<WorryBoardView | null> {
   const boards = await listBoards();
   const active = boards.find((board) => board.phase !== "closed") ?? boards[0];
 
   if (!active) return null;
 
-  return getBoardView(active.boardId, teamNumber);
+  return getBoardView(active.boardId);
 }
 
-export async function getBoardView(
-  boardId: string,
-  teamNumber?: number,
-): Promise<WorryBoardView | null> {
+export async function getBoardView(boardId: string): Promise<WorryBoardView | null> {
   const [boardRows, worryRows, replyRows] = await Promise.all([
     readSheet(BOARDS),
     readSheet(WORRIES),
@@ -83,9 +81,23 @@ export async function getBoardView(
     countByCategory[worry.category] += 1;
   }
 
-  // 작성 단계에서는 건수만 알리고 내용은 내려보내지 않는다.
+  const inJar = all.filter((worry) => worry.drawOrder <= 0);
+
+  /*
+   * 항아리를 채우는 동안에는 개수만 알린다.
+   *
+   * 내용을 내려보내고 화면에서 가리기만 하면 개발자도구로 볼 수 있다.
+   * 자기가 쓴 고민이 남에게 보일까 걱정하면 솔직하게 못 쓴다.
+   */
   if (board.phase === "writing") {
-    return { board, worries: [], totalWorries: all.length, countByCategory };
+    return {
+      board,
+      worries: [],
+      current: null,
+      remaining: all.length,
+      totalWorries: all.length,
+      countByCategory,
+    };
   }
 
   const repliesByWorry = new Map<string, WorryReply[]>();
@@ -96,27 +108,96 @@ export async function getBoardView(
     else repliesByWorry.set(reply.worryId, [reply]);
   }
 
-  // 답변 단계에서는 자기 팀 고민만 본다. 팀을 고르지 않았으면 아직 보여주지 않는다.
-  const replying = board.phase === "replying";
-  const visible = replying
-    ? teamNumber && teamNumber > 0
-      ? all.filter((worry) => worry.teamNumber === teamNumber)
-      : []
-    : all;
+  const withReplies = (worry: Worry): WorryCard => ({
+    ...worry,
+    replies: repliesByWorry.get(worry.worryId) ?? [],
+  });
 
   /*
-   * 답변 단계에서는 남이 붙인 포스트잇을 아직 내려보내지 않는다.
-   * 다른 사람의 답변을 보고 쓰면 3단계에서 함께 볼 때 재미가 줄고,
-   * 화면에서 가리기만 하면 개발자도구로 볼 수 있다.
+   * 뽑기 단계에서는 뽑힌 고민만 내려보낸다. 항아리에 남은 것은 담지 않는다.
+   * 다 같이 보는 단계부터는 남은 것까지 전부 펼친다.
    */
-  const worries: WorryCard[] = visible
-    .map((worry) => ({
-      ...worry,
-      replies: replying ? [] : (repliesByWorry.get(worry.worryId) ?? []),
-    }))
-    .sort(byShuffledId);
+  const opened = board.phase === "drawing";
+  const visible = opened ? all.filter((worry) => worry.drawOrder > 0) : all;
 
-  return { board, worries, totalWorries: all.length, countByCategory };
+  // 나중에 뽑힌 것이 위로 온다. 지금 이야기하는 고민이 항상 맨 앞이다.
+  const worries = visible
+    .map(withReplies)
+    .sort((a, b) => b.drawOrder - a.drawOrder || byShuffledId(a, b));
+
+  const current = opened ? (worries[0] ?? null) : null;
+
+  return {
+    board,
+    worries,
+    current,
+    remaining: inJar.length,
+    totalWorries: all.length,
+    countByCategory,
+  };
+}
+
+/**
+ * 폴링용 가벼운 상태.
+ *
+ * 진행자가 뽑으면 참여자 화면에도 같은 고민이 떠야 한다. 22명이 각자 몇 초에
+ * 한 번씩 물어보므로 시트 읽기가 금방 늘어난다. 그래서 boards·worries 두
+ * 시트만 읽고, 답변은 담지 않는다. (답변은 자기가 쓴 직후에만 새로 받으면 된다.)
+ */
+export async function getPulse(boardId: string): Promise<WorryPulse | null> {
+  const cached = readCache(boardId);
+  if (cached) return cached;
+
+  const [boardRows, worryRows] = await Promise.all([readSheet(BOARDS), readSheet(WORRIES)]);
+
+  const boardRow = boardRows.find((row) => row.board_id === boardId);
+  if (!boardRow) return null;
+
+  const board = toBoard(boardRow);
+  const all = worryRows.filter((row) => row.board_id === boardId).map(toWorry);
+  const drawn = all.filter((worry) => worry.drawOrder > 0);
+
+  const latest = drawn.reduce<Worry | null>(
+    (best, worry) => (best === null || worry.drawOrder > best.drawOrder ? worry : best),
+    null,
+  );
+
+  const pulse: WorryPulse = {
+    phase: board.phase,
+    remaining: all.length - drawn.length,
+    totalWorries: all.length,
+    drawnCount: drawn.length,
+    // 뽑기 단계에서만 내용을 내려보낸다. 다른 단계에서는 화면이 통째로 다시 그려진다.
+    current:
+      board.phase === "drawing" && latest ? { ...latest, replies: [] } : null,
+  };
+
+  writeCache(boardId, pulse);
+  return pulse;
+}
+
+/**
+ * 폴링 응답을 잠깐 모아 둔다.
+ *
+ * 22명이 동시에 물어봐도 이 시간 동안은 시트를 한 번만 읽는다. 서버가 여러
+ * 대로 나뉘면 대수만큼 읽지만, 그래도 사람 수만큼 읽는 것보다 훨씬 적다.
+ * 진행자가 뽑은 뒤 참여자 화면에 뜨기까지 이 시간만큼 더 걸릴 수 있다.
+ */
+const PULSE_CACHE_MS = 3000;
+let pulseCache: { boardId: string; at: number; value: WorryPulse } | null = null;
+
+function readCache(boardId: string): WorryPulse | null {
+  if (!pulseCache || pulseCache.boardId !== boardId) return null;
+  return Date.now() - pulseCache.at < PULSE_CACHE_MS ? pulseCache.value : null;
+}
+
+function writeCache(boardId: string, value: WorryPulse): void {
+  pulseCache = { boardId, at: Date.now(), value };
+}
+
+/** 방금 쓴 사람이 기다리지 않게, 글을 남긴 직후에는 모아 둔 값을 버린다. */
+function clearCache(): void {
+  pulseCache = null;
 }
 
 export async function listBoards(): Promise<WorryBoard[]> {
@@ -154,8 +235,8 @@ export function validateCreateBoard(
   const errors: CreateBoardErrors = {};
 
   const title = str(input.title);
-  if (title.length < 2) errors.title = "보드 제목을 입력해 주세요.";
-  else if (title.length > 60) errors.title = "제목이 너무 깁니다.";
+  if (title.length < 2) errors.title = "항아리 이름을 입력해 주세요.";
+  else if (title.length > 60) errors.title = "이름이 너무 깁니다.";
 
   const description = str(input.description);
   if (description.length > 200) errors.description = "설명은 200자 이내로 써 주세요.";
@@ -193,12 +274,12 @@ export function validateAddReply(
   const errors: AddReplyErrors = {};
 
   const worryId = str(input.worryId);
-  if (!worryId) errors.worryId = "어떤 고민에 다는 답변인지 알 수 없습니다.";
+  if (!worryId) errors.worryId = "어떤 고민에 붙이는 포스트잇인지 알 수 없습니다.";
 
   const content = str(input.content);
-  if (content.length < 2) errors.content = "답변을 두 자 이상 적어 주세요.";
+  if (content.length < 2) errors.content = "두 자 이상 적어 주세요.";
   else if (content.length > REPLY_MAX_LENGTH) {
-    errors.content = `답변은 ${REPLY_MAX_LENGTH}자 이내로 적어 주세요.`;
+    errors.content = `포스트잇은 ${REPLY_MAX_LENGTH}자 이내로 적어 주세요.`;
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
@@ -220,16 +301,16 @@ export async function createBoard(input: CreateBoardInput): Promise<{ boardId: s
     title: input.title,
     description: input.description,
     phase: "writing",
-    team_count: "0",
     created_at: now,
     updated_at: now,
   });
 
+  clearCache();
   return { boardId };
 }
 
 /**
- * 고민 한 건을 남긴다.
+ * 고민 한 건을 항아리에 넣는다.
  *
  * 작성자를 알 수 있는 값은 넘기지도 받지도 않는다.
  * 작성 시각은 날짜까지만 남긴다.
@@ -240,9 +321,11 @@ export async function addWorry(boardId: string, input: AddWorryInput): Promise<v
     board_id: boardId,
     category: input.category,
     content: input.content,
-    team_number: "0",
+    draw_order: "0",
     created_on: today(),
   });
+
+  clearCache();
 }
 
 export async function addReply(input: AddReplyInput): Promise<void> {
@@ -252,70 +335,81 @@ export async function addReply(input: AddReplyInput): Promise<void> {
     content: input.content,
     created_on: today(),
   });
+
+  clearCache();
 }
 
 export async function setPhase(boardId: string, phase: WorryPhase): Promise<void> {
   await patchRowsWhere(BOARDS, { board_id: boardId }, { phase, updated_at: nowKstIso() });
+  clearCache();
 }
 
 /**
- * 고민을 팀에 나눠 배정한다.
+ * 항아리에서 고민 하나를 무작위로 뽑는다.
  *
- * 무작위로 섞어 고르게 나눈다. 분류(개인·회사)를 섞어 한 팀에 한쪽만
- * 몰리지 않게 각 분류를 따로 섞은 뒤 번갈아 배정한다.
+ * 뽑힌 고민은 항아리로 돌아가지 않는다. 뽑은 순서를 매겨 두면 남은 것만
+ * 다음 대상이 되므로 모든 고민이 정확히 한 번씩 다뤄진다.
+ *
+ * 항아리가 비어 있으면 아무것도 하지 않고 알린다.
  */
-export async function assignTeams(
+export async function drawWorry(
   boardId: string,
-  teamCount: number,
-): Promise<{ assigned: number }> {
+): Promise<{ drawn: Worry | null; remaining: number }> {
   const rows = await readSheet(WORRIES);
-  const worries = rows.filter((row) => row.board_id === boardId).map(toWorry);
+  const all = rows.filter((row) => row.board_id === boardId).map(toWorry);
+  const inJar = all.filter((worry) => worry.drawOrder <= 0);
 
-  if (worries.length === 0 || teamCount < 1) {
-    await patchRowsWhere(
-      BOARDS,
-      { board_id: boardId },
-      { team_count: String(Math.max(teamCount, 0)), updated_at: nowKstIso() },
-    );
-    return { assigned: 0 };
+  if (inJar.length === 0) {
+    return { drawn: null, remaining: 0 };
   }
 
-  const personal = shuffle(worries.filter((worry) => worry.category === "개인"));
-  const company = shuffle(worries.filter((worry) => worry.category === "회사"));
-
-  // 두 분류를 번갈아 뽑아 한 줄로 세운 뒤 앞에서부터 팀을 돌려 가며 배정한다.
-  const ordered: Worry[] = [];
-  for (let i = 0; i < Math.max(personal.length, company.length); i += 1) {
-    if (personal[i]) ordered.push(personal[i]);
-    if (company[i]) ordered.push(company[i]);
-  }
-
-  for (let i = 0; i < ordered.length; i += 1) {
-    const teamNumber = (i % teamCount) + 1;
-    await patchRowsWhere(
-      WORRIES,
-      { worry_id: ordered[i].worryId },
-      { team_number: String(teamNumber) },
-    );
-  }
+  const picked = inJar[Math.floor(Math.random() * inJar.length)];
+  const nextOrder = all.reduce((max, worry) => Math.max(max, worry.drawOrder), 0) + 1;
 
   await patchRowsWhere(
-    BOARDS,
-    { board_id: boardId },
-    { team_count: String(teamCount), updated_at: nowKstIso() },
+    WORRIES,
+    { worry_id: picked.worryId },
+    { draw_order: String(nextOrder) },
   );
 
-  return { assigned: ordered.length };
+  clearCache();
+  return { drawn: { ...picked, drawOrder: nextOrder }, remaining: inJar.length - 1 };
+}
+
+/**
+ * 마지막으로 뽑은 고민을 항아리에 되돌린다.
+ *
+ * 진행자가 실수로 눌렀을 때 쓴다. 되돌리면 그 고민은 다시 뽑기 대상이 된다.
+ * 이미 붙은 포스트잇은 그대로 둔다. 되돌린 뒤 다시 뽑히면 이어서 붙는다.
+ */
+export async function undoDraw(boardId: string): Promise<{ undone: boolean }> {
+  const rows = await readSheet(WORRIES);
+  const all = rows.filter((row) => row.board_id === boardId).map(toWorry);
+
+  const latest = all.reduce<Worry | null>(
+    (best, worry) =>
+      worry.drawOrder > 0 && (best === null || worry.drawOrder > best.drawOrder) ? worry : best,
+    null,
+  );
+
+  if (!latest) return { undone: false };
+
+  await patchRowsWhere(WORRIES, { worry_id: latest.worryId }, { draw_order: "0" });
+
+  clearCache();
+  return { undone: true };
 }
 
 /** 운영자가 부적절한 글을 지운다. 공개 화면이라 지울 수단이 필요하다. */
 export async function deleteWorry(worryId: string): Promise<void> {
   await deleteRowsWhere(REPLIES, { worry_id: worryId });
   await deleteRowsWhere(WORRIES, { worry_id: worryId });
+  clearCache();
 }
 
 export async function deleteReply(replyId: string): Promise<void> {
   await deleteRowsWhere(REPLIES, { reply_id: replyId });
+  clearCache();
 }
 
 // ---------------------------------------------------------------------------
@@ -328,11 +422,18 @@ function toBoard(row: Record<string, string>): WorryBoard {
     programId: row.program_id ?? "",
     title: row.title ?? "",
     description: row.description ?? "",
-    phase: (row.phase || "writing") as WorryPhase,
-    teamCount: Math.trunc(parseNumber(row.team_count ?? "", 0)),
+    phase: normalizePhase(row.phase),
     createdAt: row.created_at ?? "",
     updatedAt: row.updated_at ?? "",
   };
+}
+
+/** 예전 단계 이름(replying)이 시트에 남아 있어도 읽을 수 있게 한다. */
+function normalizePhase(raw: string | undefined): WorryPhase {
+  const value = (raw ?? "").trim();
+  if (value === "replying") return "drawing";
+  if (value === "drawing" || value === "sharing" || value === "closed") return value;
+  return "writing";
 }
 
 function toWorry(row: Record<string, string>): Worry {
@@ -341,7 +442,7 @@ function toWorry(row: Record<string, string>): Worry {
     boardId: row.board_id ?? "",
     category: (row.category || "개인") as WorryCategory,
     content: row.content ?? "",
-    teamNumber: Math.trunc(parseNumber(row.team_number ?? "", 0)),
+    drawOrder: Math.trunc(parseNumber(row.draw_order ?? "", 0)),
     createdOn: row.created_on ?? "",
   };
 }
@@ -368,15 +469,6 @@ function randomId(length: number): string {
 /** 한국 시간 기준 날짜. 분·초는 남기지 않는다. */
 function today(): string {
   return nowKstIso().slice(0, 10);
-}
-
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
 }
 
 function str(value: unknown): string {

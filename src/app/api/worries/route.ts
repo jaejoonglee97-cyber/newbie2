@@ -7,7 +7,7 @@ import { isMockMode } from "@/lib/repo";
 import { createBoard, validateCreateBoard } from "@/lib/worry-logs";
 
 /**
- * 고민 나눔 보드 만들기.
+ * 고민 항아리 만들기.
  *
  * 참여는 로그인 없이 누구나 하지만, 보드를 만드는 것은 운영자만 한다.
  * 누구나 보드를 만들 수 있으면 활동 중에 엉뚱한 보드가 생길 수 있다.

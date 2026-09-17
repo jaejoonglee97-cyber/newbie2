@@ -286,16 +286,15 @@ var SHEETS = [
     ],
   },
   {
-    // 익명 고민 나눔 보드 하나 (회기별로 만든다)
+    // 익명 고민 항아리 하나 (회기별로 만든다)
     name: 'worry_boards',
     columns: [
       ['board_id', TEXT, null],
       ['program_id', TEXT, null],
       ['title', TEXT, null],
       ['description', null, null],
-      // writing = 고민 작성, replying = 팀별 답변, sharing = 함께 보기, closed = 마감
-      ['phase', TEXT, ['writing', 'replying', 'sharing', 'closed']],
-      ['team_count', NUMBER, null],
+      // writing = 항아리 채우기, drawing = 뽑아서 이야기, sharing = 함께 보기, closed = 마감
+      ['phase', TEXT, ['writing', 'drawing', 'sharing', 'closed']],
       ['created_at', TEXT, null],
       ['updated_at', TEXT, null],
     ],
@@ -314,13 +313,18 @@ var SHEETS = [
       ['board_id', TEXT, null],
       ['category', TEXT, ['개인', '회사']],
       ['content', null, null],
-      // 팀 배정 전에는 0
-      ['team_number', NUMBER, null],
+      /*
+       * 뽑힌 순서. 0 이면 아직 항아리 안에 있다.
+       *
+       * 뽑는 순서는 무작위라 작성 순서와 관계가 없다. 이 값으로 누가 언제
+       * 썼는지 알 수 없다.
+       */
+      ['draw_order', NUMBER, null],
       ['created_on', DATE, null],
     ],
   },
   {
-    // 고민에 붙이는 익명 포스트잇 답변
+    // 뽑힌 고민에 붙이는 익명 포스트잇
     name: 'worry_replies',
     columns: [
       ['reply_id', TEXT, null],

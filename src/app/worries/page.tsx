@@ -13,12 +13,12 @@ import { getActiveBoardView } from "@/lib/worry-logs";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "고민 나눔 · 뉴비스쿨 2기 동문회",
+  title: "고민 항아리 · 뉴비스쿨 2기 동문회",
   robots: { index: false, follow: false },
 };
 
 /**
- * 익명 고민 나눔 보드.
+ * 익명 고민 항아리.
  *
  * 로그인을 요구하지 않는다. 링크를 받은 사람 누구나 참여하는 활동이고,
  * 로그인을 붙이면 서버가 누가 썼는지 알게 되어 익명이 아니게 된다.
@@ -27,19 +27,10 @@ export const metadata = {
  * 팀 번호는 주소의 team 값으로 받는다. 서버는 이 값을 저장하지 않고
  * 이번 화면에 무엇을 보여줄지 고르는 데만 쓴다.
  */
-export default async function WorriesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ team?: string }>;
-}) {
-  const [settings, role, query] = await Promise.all([
-    getSettings(),
-    getSessionRole(),
-    searchParams,
-  ]);
+export default async function WorriesPage() {
+  const [settings, role] = await Promise.all([getSettings(), getSessionRole()]);
 
-  const selectedTeam = Math.max(0, Math.trunc(Number(query.team) || 0));
-  const board = await loadOr("고민 나눔", null, () => getActiveBoardView(selectedTeam));
+  const board = await loadOr("고민 항아리", null, getActiveBoardView);
   const isAdmin = role === "admin";
 
   return (
@@ -59,9 +50,9 @@ export default async function WorriesPage({
         ) : null}
 
         {board.failed ? (
-          <LoadFailureNotice what="고민 나눔" />
+          <LoadFailureNotice what="고민 항아리" />
         ) : board.data ? (
-          <WorryBoard view={board.data} isAdmin={isAdmin} selectedTeam={selectedTeam} />
+          <WorryBoard view={board.data} isAdmin={isAdmin} />
         ) : (
           <EmptyState isAdmin={isAdmin} />
         )}
@@ -76,10 +67,10 @@ function EmptyState({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div className="space-y-6">
       <div className="rounded-[14px] border border-line bg-surface px-6 py-12 text-center">
-        <h1 className="text-xl font-bold text-navy">아직 열린 고민 나눔이 없습니다</h1>
+        <h1 className="text-xl font-bold text-navy">아직 열린 고민 항아리가 없습니다</h1>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-soft">
-          모임 시간에 운영자가 보드를 열면 이 화면에서 바로 참여할 수 있습니다. 로그인은
-          필요 없습니다.
+          모임 시간에 진행자가 항아리를 열면 이 화면에서 바로 고민을 넣을 수 있습니다.
+          로그인은 필요 없습니다.
         </p>
       </div>
 

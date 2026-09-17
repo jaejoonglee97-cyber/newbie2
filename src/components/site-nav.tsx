@@ -57,7 +57,7 @@ const GROUPS: NavGroup[] = [
     label: "모임 도구",
     items: [
       { tab: "teams", label: "조 편성", href: "/teams", hint: "무작위로 조 나누기" },
-      { tab: "worries", label: "고민 나눔", href: "/worries", hint: "익명으로 묻고 답하기" },
+      { tab: "worries", label: "고민 항아리", href: "/worries", hint: "익명으로 넣고 뽑아서 나누기" },
       { tab: "feedback", label: "만족도", href: "/feedback", hint: "회차별 짧은 설문" },
     ],
   },
