@@ -1,3 +1,5 @@
+import { PLANNED_SESSIONS, type PlannedSession } from "@/lib/program-plan";
+
 export function ActivityPlanOverview() {
   return (
     <section aria-labelledby="activity-plan" className="rounded-[14px] border border-line bg-surface overflow-hidden">
@@ -17,30 +19,9 @@ export function ActivityPlanOverview() {
         <h3 className="text-lg font-bold text-navy mb-6">월별 세부 프로그램</h3>
         
         <div className="space-y-6">
-          <ProgramCard 
-            month="9월"
-            title="다시 만나 반가워요"
-            subtitle="관계형성과 동문회 방향 만들기"
-            details="오리엔테이션, 근황 나눔, 관계 형성 활동, 동문회 활동 기대사항 공유"
-          />
-          <ProgramCard 
-            month="10월"
-            title="우리들의 현장 이야기"
-            subtitle="고민과 경험 나누기"
-            details="현장 고민 및 경험 나눔, 주제별 소그룹 대화, 서로의 실천방법·아이디어 공유"
-          />
-          <ProgramCard 
-            month="11월"
-            title="서로에게 힘이되는 시간"
-            subtitle="사회복지사를 위한 쉼과 회복"
-            details="마음돌봄 프로그램 참여, 자기돌봄 활동, 활동 소감 및 서로의 마음 나눔"
-          />
-          <ProgramCard 
-            month="12월"
-            title="중부재단 동문회 파티"
-            subtitle="연결을 넓히고 이어가기"
-            details="활동 사진·기록 돌아보기, 동문회 활동 소감 공유, 서로에게 전하는 메시지, 차년도 활동 의견 나눔"
-          />
+          {PLANNED_SESSIONS.map((session) => (
+            <ProgramCard key={session.sessionNumber} session={session} />
+          ))}
         </div>
       </div>
 
@@ -65,28 +46,18 @@ export function ActivityPlanOverview() {
   );
 }
 
-function ProgramCard({
-  month,
-  title,
-  subtitle,
-  details,
-}: {
-  month: string;
-  title: string;
-  subtitle: string;
-  details: string;
-}) {
+function ProgramCard({ session }: { session: PlannedSession }) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 p-5 rounded-xl border border-line bg-canvas transition-colors hover:border-brand-blue/30 hover:shadow-sm">
-      <div className="flex-shrink-0 flex items-center sm:items-start sm:w-20">
+      <div className="flex-shrink-0 flex items-center sm:items-start sm:w-28">
         <span className="inline-block rounded-full bg-brand-blue/10 px-3 py-1 text-sm font-bold text-brand-blue">
-          {month}
+          {session.sessionNumber}회기 · {session.month}
         </span>
       </div>
       <div>
-        <h4 className="text-base font-bold text-ink">{title}</h4>
-        <p className="mt-1 text-sm font-semibold text-ink-soft">{subtitle}</p>
-        <p className="mt-2 text-sm text-ink-muted leading-relaxed">{details}</p>
+        <h4 className="text-base font-bold text-ink">{session.title}</h4>
+        <p className="mt-1 text-sm font-semibold text-ink-soft">{session.subtitle}</p>
+        <p className="mt-2 text-sm text-ink-muted leading-relaxed">{session.details}</p>
       </div>
     </div>
   );

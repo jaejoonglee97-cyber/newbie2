@@ -7,6 +7,8 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteNav } from "@/components/site-nav";
 import { getActivityEditValues, getBudgetSummary, listMemberOptions } from "@/lib/activity-logs";
 import { getSessionRole } from "@/lib/auth";
+import { listFeedbackSummaries } from "@/lib/feedback-logs";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 
@@ -36,11 +38,13 @@ export default async function EditActivityPage({
     redirect(`/login?returnTo=${encodeURIComponent(`/activities/${activityId}/edit`)}`);
   }
 
-  const [settings, initial, members, budget] = await Promise.all([
+  const [settings, initial, members, budget, feedback] = await Promise.all([
     getSettings(),
     getActivityEditValues(activityId),
     listMemberOptions(),
     getBudgetSummary(),
+    // 참고용이라 못 읽어도 수정은 막지 않는다.
+    loadOr("만족도 집계", [], listFeedbackSummaries),
   ]);
 
   if (!initial) {
@@ -101,6 +105,7 @@ export default async function EditActivityPage({
             activityEndDate={settings.activityEndDate}
             nextSessionNumber={initial.sessionNumber}
             availableBudget={budget.available}
+            feedbackSummaries={feedback.data}
             initial={initial}
           />
         </div>

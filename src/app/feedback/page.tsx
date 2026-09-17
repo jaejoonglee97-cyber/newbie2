@@ -31,8 +31,10 @@ export default async function FeedbackPage() {
    * 회차 목록을 못 읽어도 폼은 띄운다. 회차를 못 고르는 것뿐이고,
    * 만족도 화면 자체가 안 열릴 이유는 없다.
    */
-  const loaded = await loadOr("만족도 응답", { sessions: [], summaries: [], totalCount: 0 }, () =>
-    getFeedbackView(isAdmin),
+  const loaded = await loadOr(
+    "만족도 응답",
+    { sessions: [], suggestedSessionNumber: 0, summaries: [], totalCount: 0 },
+    () => getFeedbackView(isAdmin),
   );
   const view = loaded.data;
 
@@ -65,7 +67,10 @@ export default async function FeedbackPage() {
         ) : null}
 
         <div className="mt-8">
-          <FeedbackForm sessions={view.sessions} />
+          <FeedbackForm
+            sessions={view.sessions}
+            suggestedSessionNumber={view.suggestedSessionNumber}
+          />
         </div>
 
         {isAdmin ? <AdminSummary summaries={view.summaries} total={view.totalCount} /> : null}

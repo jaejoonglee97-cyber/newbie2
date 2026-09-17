@@ -47,8 +47,10 @@ export type SessionFeedback = {
 
 /** 화면에 내려보내는 전체 */
 export type FeedbackView = {
-  /** 고를 수 있는 회차. 활동 기록에 있는 회차 + 이미 응답이 있는 회차 */
+  /** 고를 수 있는 회차. 계획된 회기 + 활동 기록이 있는 회차 + 이미 응답이 있는 회차 */
   sessions: Array<{ sessionNumber: number; topic: string }>;
+  /** 폼에서 미리 골라 둘 회차. 방금 끝났을 가능성이 가장 큰 회차다. */
+  suggestedSessionNumber: number;
   /** 집계. 운영자에게만 내려보낸다. */
   summaries: SessionFeedback[];
   totalCount: number;

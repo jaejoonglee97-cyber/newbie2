@@ -6,6 +6,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { getBudgetSummary, listActivities, listMemberOptions } from "@/lib/activity-logs";
 import { getSessionRole } from "@/lib/auth";
+import { listFeedbackSummaries } from "@/lib/feedback-logs";
+import { loadOr } from "@/lib/load";
 import { isMockMode } from "@/lib/repo";
 import { getSettings } from "@/lib/settings";
 
@@ -24,11 +26,13 @@ export default async function NewActivityPage() {
     redirect("/login?returnTo=%2Factivities%2Fnew");
   }
 
-  const [settings, members, activities, budget] = await Promise.all([
+  const [settings, members, activities, budget, feedback] = await Promise.all([
     getSettings(),
     listMemberOptions(),
     listActivities(),
     getBudgetSummary(),
+    // 참고용이라 못 읽어도 작성은 막지 않는다.
+    loadOr("만족도 집계", [], listFeedbackSummaries),
   ]);
 
   // 다음 회기 번호를 미리 채워 준다.
@@ -65,6 +69,7 @@ export default async function NewActivityPage() {
             activityEndDate={settings.activityEndDate}
             nextSessionNumber={nextSessionNumber}
             availableBudget={budget.available}
+            feedbackSummaries={feedback.data}
           />
         </div>
       </main>

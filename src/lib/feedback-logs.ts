@@ -2,6 +2,7 @@ import "server-only";
 
 import { listActivities } from "./activity-logs";
 import { nowKstIso, parseNumber } from "./format";
+import { PLANNED_SESSIONS } from "./program-plan";
 import { appendRow, deleteRowsWhere, readSheet } from "./repo";
 import { getSettings } from "./settings";
 import type {
@@ -45,12 +46,28 @@ export async function getFeedbackView(includeSummaries: boolean): Promise<Feedba
   const [rows, activities] = await Promise.all([readSheet(SHEET), listActivities()]);
   const feedbacks = rows.map(toFeedback);
 
-  const topicBySession = new Map(
-    activities.map((activity) => [activity.sessionNumber, activity.topic]),
+  /*
+   * 회차 이름은 활동일지가 있으면 거기 적힌 주제를, 없으면 계획에 적힌 제목을 쓴다.
+   * 만족도는 모임이 끝난 자리에서 바로 받고 활동일지는 나중에 쓰므로,
+   * 기록이 생기기 전에도 회차 이름이 제대로 보여야 한다.
+   */
+  const topicBySession = new Map<number, string>(
+    PLANNED_SESSIONS.map((session) => [session.sessionNumber, session.title]),
   );
+  for (const activity of activities) {
+    if (activity.topic) {
+      topicBySession.set(activity.sessionNumber, activity.topic);
+    }
+  }
 
-  // 고를 수 있는 회차: 기록된 활동 + 이미 응답이 있는 회차
+  /*
+   * 고를 수 있는 회차: 계획된 회기 + 기록된 활동 + 이미 응답이 있는 회차.
+   *
+   * 계획을 넣지 않으면 활동일지를 쓰기 전까지 고를 회차가 하나도 없어
+   * 만족도를 미리 받을 수 없다.
+   */
   const sessionNumbers = new Set<number>([
+    ...PLANNED_SESSIONS.map((session) => session.sessionNumber),
     ...activities.map((activity) => activity.sessionNumber),
     ...feedbacks.map((feedback) => feedback.sessionNumber),
   ]);
@@ -63,8 +80,21 @@ export async function getFeedbackView(includeSummaries: boolean): Promise<Feedba
       topic: topicBySession.get(sessionNumber) ?? "",
     }));
 
+  /*
+   * 미리 골라 둘 회차: 아직 활동일지가 없는 첫 회차.
+   *
+   * 만족도는 모임이 끝난 자리에서 받고 활동일지는 그 뒤에 쓴다. 그래서
+   * "기록이 아직 없는 첫 회차"가 방금 끝난 회차일 가능성이 가장 크다.
+   * 전부 기록이 있으면 마지막 회차로 둔다.
+   */
+  const recorded = new Set(activities.map((activity) => activity.sessionNumber));
+  const suggestedSessionNumber =
+    sessions.find((session) => !recorded.has(session.sessionNumber))?.sessionNumber ??
+    sessions.at(-1)?.sessionNumber ??
+    0;
+
   if (!includeSummaries) {
-    return { sessions, summaries: [], totalCount: feedbacks.length };
+    return { sessions, suggestedSessionNumber, summaries: [], totalCount: feedbacks.length };
   }
 
   const summaries = sessions
@@ -72,7 +102,18 @@ export async function getFeedbackView(includeSummaries: boolean): Promise<Feedba
     .filter((summary) => summary.count > 0)
     .sort((a, b) => b.sessionNumber - a.sessionNumber);
 
-  return { sessions, summaries, totalCount: feedbacks.length };
+  return { sessions, suggestedSessionNumber, summaries, totalCount: feedbacks.length };
+}
+
+/**
+ * 회차별 집계만 뽑는다.
+ *
+ * 활동일지를 쓸 때 그 회차의 만족도를 옆에 놓고 평가를 적을 수 있게
+ * 하기 위한 값이다. 운영자 화면에서만 쓴다.
+ */
+export async function listFeedbackSummaries(): Promise<SessionFeedback[]> {
+  const view = await getFeedbackView(true);
+  return view.summaries;
 }
 
 function summarize(

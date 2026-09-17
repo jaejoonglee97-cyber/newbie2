@@ -12,6 +12,7 @@ import type {
   BudgetCategory,
   MemberOption,
 } from "@/lib/activity-types";
+import { SCORE_LABELS, type SessionFeedback } from "@/lib/feedback-types";
 import { formatWon } from "@/lib/format";
 
 /**
@@ -59,6 +60,13 @@ type Props = {
   activityEndDate: string;
   nextSessionNumber: number;
   availableBudget: number;
+  /**
+   * 회차별 만족도 집계.
+   *
+   * 만족도는 모임이 끝난 자리에서 먼저 받고 활동일지는 나중에 쓴다.
+   * 평가를 적을 때 그 회차 응답을 옆에 놓고 볼 수 있게 넘긴다.
+   */
+  feedbackSummaries?: SessionFeedback[];
   /** 수정 모드일 때만 넘긴다. 없으면 새로 작성한다. */
   initial?: ActivityEditInitial;
 };
@@ -97,6 +105,7 @@ export function ActivityLogForm({
   activityEndDate,
   nextSessionNumber,
   availableBudget,
+  feedbackSummaries = [],
   initial,
 }: Props) {
   const router = useRouter();
@@ -106,6 +115,10 @@ export function ActivityLogForm({
   const [sessionNumber, setSessionNumber] = useState(
     String(initial?.sessionNumber ?? nextSessionNumber),
   );
+  const sessionFeedback = feedbackSummaries.find(
+    (summary) => summary.sessionNumber === Number(sessionNumber),
+  );
+
   const [authorMemberId, setAuthorMemberId] = useState(initial?.authorMemberId ?? "");
   const [topic, setTopic] = useState(initial?.topic ?? "");
   const [objective, setObjective] = useState(initial?.objective ?? "");
@@ -475,6 +488,8 @@ export function ActivityLogForm({
             placeholder="무엇을 어떻게 진행했는지 적어 주세요."
           />
         </Field>
+
+        {sessionFeedback ? <FeedbackReference summary={sessionFeedback} /> : null}
 
         <Field
           id={`${formId}-evaluation`}
@@ -896,4 +911,69 @@ function inputClass(error?: string) {
     "placeholder:text-ink-muted/70",
     error ? "border-danger" : "border-line hover:border-brand-blue/50",
   ].join(" ");
+}
+
+/**
+ * 이 회차에 먼저 들어온 만족도 응답.
+ *
+ * 평가를 적기 직전에 놓는다. 기억에 의존해 쓰는 대신 참여자가 실제로 남긴
+ * 말을 보고 쓰게 하려는 것이다. 응답은 익명이라 누가 썼는지는 알 수 없다.
+ */
+function FeedbackReference({ summary }: { summary: SessionFeedback }) {
+  return (
+    <details className="rounded-[14px] border border-brand-blue/30 bg-brand-blue/5 p-5">
+      <summary className="cursor-pointer text-sm font-bold text-navy">
+        {summary.sessionNumber}회기 만족도 {summary.count}명 · 평균 {summary.averageScore}점
+        <span className="ml-2 font-medium text-ink-muted">(평가 쓸 때 참고)</span>
+      </summary>
+
+      <ul className="mt-4 space-y-1">
+        {([5, 4, 3, 2, 1] as const).map((score) => {
+          const count = summary.scoreCounts[score];
+          const ratio = summary.count > 0 ? (count / summary.count) * 100 : 0;
+
+          return (
+            <li key={score} className="flex items-center gap-3 text-xs">
+              <span className="w-24 shrink-0 text-ink-muted">
+                {score} {SCORE_LABELS[score]}
+              </span>
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-surface">
+                <span
+                  className="block h-full rounded-full bg-brand-blue"
+                  style={{ width: `${ratio}%` }}
+                />
+              </span>
+              <span className="w-8 shrink-0 text-right font-semibold text-ink-soft">{count}</span>
+            </li>
+          );
+        })}
+      </ul>
+
+      {summary.bestParts.length > 0 ? (
+        <div className="mt-5">
+          <h4 className="text-xs font-bold text-ink-soft">좋았던 점</h4>
+          <ul className="mt-2 space-y-1.5">
+            {summary.bestParts.map((text, index) => (
+              <li key={index} className="rounded-lg bg-surface px-3 py-2 text-sm text-ink">
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {summary.nextWishes.length > 0 ? (
+        <div className="mt-5">
+          <h4 className="text-xs font-bold text-ink-soft">다음에 해보고 싶은 활동</h4>
+          <ul className="mt-2 space-y-1.5">
+            {summary.nextWishes.map((text, index) => (
+              <li key={index} className="rounded-lg bg-surface px-3 py-2 text-sm text-ink">
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </details>
+  );
 }

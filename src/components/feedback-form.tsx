@@ -20,15 +20,17 @@ import {
  */
 export function FeedbackForm({
   sessions,
+  suggestedSessionNumber,
 }: {
   sessions: Array<{ sessionNumber: number; topic: string }>;
+  suggestedSessionNumber: number;
 }) {
   const router = useRouter();
   const formId = useId();
 
-  // 가장 최근 회차를 기본으로 둔다. 대개 방금 끝난 회차에 응답한다.
+  // 방금 끝났을 회차를 미리 골라 둔다. 대개 그 회차에 응답한다.
   const [sessionNumber, setSessionNumber] = useState(
-    sessions.length > 0 ? String(sessions[sessions.length - 1].sessionNumber) : "",
+    suggestedSessionNumber > 0 ? String(suggestedSessionNumber) : "",
   );
   const [score, setScore] = useState<SatisfactionScore | null>(null);
   const [bestPart, setBestPart] = useState("");
@@ -88,7 +90,7 @@ export function FeedbackForm({
   if (sessions.length === 0) {
     return (
       <p className="rounded-[14px] border border-line bg-surface px-6 py-12 text-center text-ink-muted">
-        아직 기록된 회차가 없습니다. 활동일지가 등록되면 그 회차에 응답할 수 있습니다.
+        아직 고를 수 있는 회차가 없습니다. 운영자에게 알려 주세요.
       </p>
     );
   }
