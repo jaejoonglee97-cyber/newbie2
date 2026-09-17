@@ -433,11 +433,16 @@ function setupSheet(ss, spec, position) {
   });
   var colCount = headers.length;
 
-  // 필요한 만큼만 열을 남긴다.
+  // 자료를 옮길 수 있도록 열을 먼저 넉넉히 확보한다.
+  if (sheet.getMaxColumns() < colCount) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), colCount - sheet.getMaxColumns());
+  }
+
+  var realigned = created ? '' : realignColumns(sheet, headers);
+
+  // 남는 열은 자료를 옮긴 뒤에 지운다.
   if (sheet.getMaxColumns() > colCount) {
     sheet.deleteColumns(colCount + 1, sheet.getMaxColumns() - colCount);
-  } else if (sheet.getMaxColumns() < colCount) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), colCount - sheet.getMaxColumns());
   }
 
   // 헤더 입력 및 스타일
@@ -488,7 +493,71 @@ function setupSheet(ss, spec, position) {
 
   sheet.autoResizeColumns(1, colCount);
 
-  return '[' + (created ? '생성' : '갱신') + '] ' + spec.name + ' (' + colCount + '개 컬럼)';
+  return '[' + (created ? '생성' : '갱신') + '] ' + spec.name + ' (' + colCount + '개 컬럼)' + realigned;
+}
+
+/**
+ * 컬럼 구성이 바뀌었을 때 기존 자료를 헤더 이름 기준으로 옮긴다.
+ *
+ * 열 개수만 맞추면 중간 컬럼이 하나 빠졌을 때 뒤 값이 한 칸씩 밀려 엉뚱한
+ * 컬럼에 들어간다. 이름으로 찾아 옮기면 순서가 바뀌거나 컬럼이 생기고
+ * 없어져도 값이 제자리를 지킨다. 그래야 setupAll 을 몇 번이고 다시 돌려도
+ * 안전하다.
+ *
+ * 새 구성에 없는 컬럼은 버린다. 무엇을 버렸는지 보고에 남긴다.
+ */
+function realignColumns(sheet, headers) {
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 1 || lastCol < 1) return '';
+
+  var oldHeaders = sheet
+    .getRange(1, 1, 1, lastCol)
+    .getValues()[0]
+    .map(function (value) {
+      return String(value == null ? '' : value).trim();
+    });
+
+  // 구성이 그대로면 손대지 않는다.
+  var same =
+    oldHeaders.length === headers.length &&
+    headers.every(function (header, index) {
+      return oldHeaders[index] === header;
+    });
+  if (same) return '';
+
+  var dropped = oldHeaders.filter(function (header) {
+    return header && headers.indexOf(header) === -1;
+  });
+
+  var indexByHeader = {};
+  for (var i = 0; i < oldHeaders.length; i++) {
+    if (oldHeaders[i] && !(oldHeaders[i] in indexByHeader)) {
+      indexByHeader[oldHeaders[i]] = i;
+    }
+  }
+
+  var dataRows = lastRow - 1;
+
+  if (dataRows > 0) {
+    var values = sheet.getRange(2, 1, dataRows, lastCol).getValues();
+
+    var moved = values.map(function (row) {
+      return headers.map(function (header) {
+        var at = header in indexByHeader ? indexByHeader[header] : -1;
+        return at === -1 ? '' : row[at];
+      });
+    });
+
+    // 옮긴 값을 쓰기 전에 기존 자료 영역을 비운다.
+    sheet.getRange(2, 1, dataRows, lastCol).clearContent();
+    sheet.getRange(2, 1, moved.length, headers.length).setValues(moved);
+  }
+
+  if (dropped.length > 0) {
+    return ' · 컬럼 맞춤 (버린 컬럼: ' + dropped.join(', ') + ')';
+  }
+  return ' · 컬럼 맞춤';
 }
 
 /** settings 시트에 없는 키만 추가한다. 기존 값은 덮어쓰지 않는다. */
