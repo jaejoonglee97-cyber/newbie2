@@ -16,8 +16,13 @@ import {
   type WorryPulse,
 } from "@/lib/worry-types";
 
-/** 참여자 화면이 진행자의 뽑기를 따라잡는 간격. */
-const PULSE_INTERVAL_MS = 5000;
+/**
+ * 참여자 화면이 진행자를 따라잡는 간격.
+ *
+ * 서버가 응답을 2.5초 모아 두므로 실제로는 이보다 조금 더 걸릴 수 있다.
+ * 더 짧게 하면 Google Sheets 의 분당 읽기 한도에 걸린다.
+ */
+const PULSE_INTERVAL_MS = 4000;
 
 /**
  * 익명 고민 항아리.
@@ -31,6 +36,21 @@ const PULSE_INTERVAL_MS = 5000;
 export function WorryBoard({ view, isAdmin }: { view: WorryBoardView; isAdmin: boolean }) {
   const { board } = view;
 
+  /*
+   * 뽑기 단계가 아닐 때도 따라잡는다.
+   *
+   * 고민을 넣는 화면을 열어 둔 채로 진행자가 "이제 뽑을게요" 하고 단계를
+   * 넘기면, 여기서 보고 있지 않으면 참여자 화면은 계속 쓰기 화면에 멈춰 있다.
+   * 모임 자리에서 각자 새로고침하라고 말해야 하는 상황을 만들지 않는다.
+   */
+  useWorryPulse({
+    boardId: board.boardId,
+    // 진행자 화면은 자기가 눌러서 바뀌므로 따라잡을 필요가 없다.
+    enabled: !isAdmin && board.phase !== "closed",
+    currentWorryId: view.current?.worryId ?? "",
+    phase: board.phase,
+  });
+
   return (
     <div className="space-y-8">
       <header>
@@ -43,7 +63,7 @@ export function WorryBoard({ view, isAdmin }: { view: WorryBoardView; isAdmin: b
 
       <PhaseSteps phase={board.phase} />
 
-      {board.phase === "writing" ? <WritingPhase view={view} /> : null}
+      {board.phase === "writing" ? <WritingPhase view={view} isAdmin={isAdmin} /> : null}
       {board.phase === "drawing" ? <DrawingPhase view={view} isAdmin={isAdmin} /> : null}
       {board.phase === "sharing" || board.phase === "closed" ? (
         <OpenPhase view={view} isAdmin={isAdmin} />
@@ -58,7 +78,7 @@ export function WorryBoard({ view, isAdmin }: { view: WorryBoardView; isAdmin: b
 // 1단계 · 항아리 채우기
 // ---------------------------------------------------------------------------
 
-function WritingPhase({ view }: { view: WorryBoardView }) {
+function WritingPhase({ view, isAdmin }: { view: WorryBoardView; isAdmin: boolean }) {
   const [motion, setMotion] = useState<JarMotion>("idle");
 
   return (
@@ -74,10 +94,13 @@ function WritingPhase({ view }: { view: WorryBoardView }) {
           }
         />
 
-        <p className="mx-auto mt-6 max-w-md text-center text-sm leading-relaxed text-ink-soft">
-          적은 고민은 곧바로 항아리로 들어갑니다. 진행자가 뽑기 전까지는 누구에게도 보이지
-          않고, 뽑힌 뒤에도 누가 썼는지는 아무도 알 수 없습니다.
-        </p>
+        <div className="mx-auto mt-6 max-w-md text-center">
+          <p className="text-sm leading-relaxed text-ink-soft">
+            적은 고민은 곧바로 항아리로 들어갑니다. 진행자가 뽑기 전까지는 누구에게도 보이지
+            않고, 뽑힌 뒤에도 누가 썼는지는 아무도 알 수 없습니다.
+          </p>
+          {isAdmin ? null : <LiveMark />}
+        </div>
       </section>
 
       <WorryForm boardId={view.board.boardId} onSubmitted={() => setMotion("filling")} />
@@ -273,14 +296,6 @@ function DrawingPhase({ view, isAdmin }: { view: WorryBoardView; isAdmin: boolea
   const current = view.current;
   const past = view.worries.filter((worry) => worry.worryId !== current?.worryId);
 
-  useWorryPulse({
-    boardId: view.board.boardId,
-    // 진행자 화면은 자기가 눌러서 바뀌므로 따라잡을 필요가 없다.
-    enabled: !isAdmin,
-    currentWorryId: current?.worryId ?? "",
-    phase: view.board.phase,
-  });
-
   async function run(action: "draw" | "undoDraw") {
     setDrawing(action === "draw");
     setMessage(null);
@@ -346,10 +361,13 @@ function DrawingPhase({ view, isAdmin }: { view: WorryBoardView; isAdmin: boolea
             ) : null}
           </div>
         ) : (
-          <p className="mx-auto mt-6 max-w-md text-center text-sm leading-relaxed text-ink-soft">
-            진행자가 항아리에서 하나씩 뽑습니다. 뽑힌 고민이 아래에 나오면 함께 이야기하고
-            포스트잇을 붙여 주세요.
-          </p>
+          <div className="mx-auto mt-6 max-w-md text-center">
+            <p className="text-sm leading-relaxed text-ink-soft">
+              진행자가 항아리에서 하나씩 뽑습니다. 뽑힌 고민이 아래에 나오면 함께 이야기하고
+              포스트잇을 붙여 주세요.
+            </p>
+            <LiveMark />
+          </div>
         )}
 
         {message ? (
@@ -670,6 +688,30 @@ function ReplyForm({ boardId, worryId }: { boardId: string; worryId: string }) {
         </p>
       ) : null}
     </form>
+  );
+}
+
+/**
+ * 이 화면이 스스로 따라간다는 표시.
+ *
+ * 없으면 참여자가 화면이 멈춘 줄 알고 계속 새로고침하게 된다. 진행자가
+ * 다음으로 넘어가면 알아서 바뀐다는 것을 미리 알려 둔다.
+ */
+function LiveMark() {
+  return (
+    <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-canvas px-3 py-1.5 text-xs font-semibold text-ink-muted">
+      <span aria-hidden="true" className="live-dot block h-2 w-2 rounded-full bg-teal" />
+      진행자 화면을 따라 자동으로 바뀝니다
+      <style>{`
+        @media (prefers-reduced-motion: no-preference) {
+          .live-dot { animation: live-pulse 2s ease-in-out infinite; }
+        }
+        @keyframes live-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.25; }
+        }
+      `}</style>
+    </p>
   );
 }
 

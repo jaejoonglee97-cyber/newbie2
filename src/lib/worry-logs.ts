@@ -1,7 +1,7 @@
 import "server-only";
 
 import { nowKstIso, parseNumber } from "./format";
-import { appendRow, deleteRowsWhere, patchRowsWhere, readSheet } from "./repo";
+import { appendRow, deleteRowsWhere, patchRowsWhere, readSheet, type SheetRow } from "./repo";
 import { getSettings } from "./settings";
 import type {
   AddReplyErrors,
@@ -64,11 +64,7 @@ export async function getActiveBoardView(): Promise<WorryBoardView | null> {
 }
 
 export async function getBoardView(boardId: string): Promise<WorryBoardView | null> {
-  const [boardRows, worryRows, replyRows] = await Promise.all([
-    readSheet(BOARDS),
-    readSheet(WORRIES),
-    readSheet(REPLIES),
-  ]);
+  const { boardRows, worryRows, replyRows } = await readWorrySheets();
 
   const boardRow = boardRows.find((row) => row.board_id === boardId);
   if (!boardRow) return null;
@@ -145,10 +141,7 @@ export async function getBoardView(boardId: string): Promise<WorryBoardView | nu
  * 시트만 읽고, 답변은 담지 않는다. (답변은 자기가 쓴 직후에만 새로 받으면 된다.)
  */
 export async function getPulse(boardId: string): Promise<WorryPulse | null> {
-  const cached = readCache(boardId);
-  if (cached) return cached;
-
-  const [boardRows, worryRows] = await Promise.all([readSheet(BOARDS), readSheet(WORRIES)]);
+  const { boardRows, worryRows } = await readPulseSheets();
 
   const boardRow = boardRows.find((row) => row.board_id === boardId);
   if (!boardRow) return null;
@@ -162,48 +155,100 @@ export async function getPulse(boardId: string): Promise<WorryPulse | null> {
     null,
   );
 
-  const pulse: WorryPulse = {
+  return {
     phase: board.phase,
     remaining: all.length - drawn.length,
     totalWorries: all.length,
     drawnCount: drawn.length,
     // 뽑기 단계에서만 내용을 내려보낸다. 다른 단계에서는 화면이 통째로 다시 그려진다.
-    current:
-      board.phase === "drawing" && latest ? { ...latest, replies: [] } : null,
+    current: board.phase === "drawing" && latest ? { ...latest, replies: [] } : null,
   };
-
-  writeCache(boardId, pulse);
-  return pulse;
 }
 
 /**
- * 폴링 응답을 잠깐 모아 둔다.
+ * 고민 항아리가 쓰는 시트를 잠깐 모아 둔다.
  *
- * 22명이 동시에 물어봐도 이 시간 동안은 시트를 한 번만 읽는다. 서버가 여러
- * 대로 나뉘면 대수만큼 읽지만, 그래도 사람 수만큼 읽는 것보다 훨씬 적다.
- * 진행자가 뽑은 뒤 참여자 화면에 뜨기까지 이 시간만큼 더 걸릴 수 있다.
+ * 진행자가 하나 뽑으면 22명의 화면이 거의 동시에 다시 그려지고, 그 사이에도
+ * 22명이 몇 초마다 상태를 물어본다. 그때마다 시트를 읽으면 분당 읽기가 수백
+ * 번이 된다. Google Sheets 는 서비스 계정 하나당 분당 60회까지만 읽게 해
+ * 주므로 그대로 두면 한도에 걸려 모두의 화면이 멈춘다.
+ *
+ * 그래서 두 가지를 한다.
+ *   - 이 시간 안에 들어온 요청은 같은 값을 나눠 쓴다. 22명이 몰려도 읽기는
+ *     한 번이다.
+ *   - 같은 순간에 여러 요청이 오면 진행 중인 읽기 하나를 같이 기다린다.
+ *
+ * 글을 쓰면 곧바로 버리므로 방금 쓴 사람이 자기 글을 기다리는 일은 없다.
+ * 서버가 여러 대로 나뉘면 대수만큼 읽지만 사람 수만큼 읽는 것보다 훨씬 적다.
  */
-const PULSE_CACHE_MS = 3000;
-let pulseCache: { boardId: string; at: number; value: WorryPulse } | null = null;
+const SHEET_CACHE_MS = 2500;
 
-function readCache(boardId: string): WorryPulse | null {
-  if (!pulseCache || pulseCache.boardId !== boardId) return null;
-  return Date.now() - pulseCache.at < PULSE_CACHE_MS ? pulseCache.value : null;
+const sheetCache = new Map<string, { at: number; rows: SheetRow[] }>();
+const inFlight = new Map<string, Promise<SheetRow[]>>();
+
+async function cachedSheet(name: string): Promise<SheetRow[]> {
+  const hit = sheetCache.get(name);
+  if (hit && Date.now() - hit.at < SHEET_CACHE_MS) {
+    return hit.rows;
+  }
+
+  const running = inFlight.get(name);
+  if (running) return running;
+
+  const request = (async () => {
+    const rows = await readSheet(name);
+    sheetCache.set(name, { at: Date.now(), rows });
+    return rows;
+  })();
+
+  inFlight.set(name, request);
+
+  try {
+    return await request;
+  } finally {
+    inFlight.delete(name);
+  }
 }
 
-function writeCache(boardId: string, value: WorryPulse): void {
-  pulseCache = { boardId, at: Date.now(), value };
+/** 화면 전체에 필요한 세 시트. */
+async function readWorrySheets(): Promise<{
+  boardRows: SheetRow[];
+  worryRows: SheetRow[];
+  replyRows: SheetRow[];
+}> {
+  const [boardRows, worryRows, replyRows] = await Promise.all([
+    cachedSheet(BOARDS),
+    cachedSheet(WORRIES),
+    cachedSheet(REPLIES),
+  ]);
+
+  return { boardRows, worryRows, replyRows };
+}
+
+/**
+ * 폴링에 필요한 두 시트.
+ *
+ * 포스트잇은 읽지 않는다. 몇 초마다 22명이 물어보는 길이라 시트 하나를 더
+ * 읽고 안 읽고가 분당 읽기 20여 회 차이가 된다.
+ */
+async function readPulseSheets(): Promise<{ boardRows: SheetRow[]; worryRows: SheetRow[] }> {
+  const [boardRows, worryRows] = await Promise.all([
+    cachedSheet(BOARDS),
+    cachedSheet(WORRIES),
+  ]);
+
+  return { boardRows, worryRows };
 }
 
 /** 방금 쓴 사람이 기다리지 않게, 글을 남긴 직후에는 모아 둔 값을 버린다. */
 function clearCache(): void {
-  pulseCache = null;
+  sheetCache.clear();
 }
 
 export async function listBoards(): Promise<WorryBoard[]> {
-  const rows = await readSheet(BOARDS);
+  const { boardRows } = await readWorrySheets();
   // 최근에 만든 보드가 앞에 오게 한다.
-  return rows.map(toBoard).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return boardRows.map(toBoard).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 /**
