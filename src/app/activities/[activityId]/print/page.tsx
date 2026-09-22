@@ -15,8 +15,13 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-/** 한 페이지에 넣을 사진 수. 2열 3행이 A4 한 장에 적당하다. */
-const PHOTOS_PER_PAGE = 6;
+/**
+ * 한 페이지에 넣을 사진 수.
+ *
+ * 양식의 사진 칸은 96mm 높이다. 2열 2행이면 그 안에 들어간다.
+ * 더 넣으면 칸이 늘어나 양식의 페이지 구성이 무너진다.
+ */
+const PHOTOS_PER_PAGE = 4;
 
 /**
  * 활동일지 A4 인쇄.
@@ -74,16 +79,17 @@ export default async function ActivityPrintPage({
         </div>
 
         <table className="form-table">
+          {/* 열 너비는 양식에서 잰 값을 좌우 20mm 여백(본문 170mm)에 맞춰 늘린 것이다. */}
           <colgroup>
-            <col style={{ width: "24mm" }} />
-            <col />
-            <col style={{ width: "24mm" }} />
-            <col style={{ width: "46mm" }} />
+            <col style={{ width: "27.6mm" }} />
+            <col style={{ width: "57.4mm" }} />
+            <col style={{ width: "36mm" }} />
+            <col style={{ width: "49mm" }} />
           </colgroup>
           <tbody>
             <tr>
               <th>모임일시</th>
-              <td className="value">
+              <td className="value cell-datetime">
                 {formatDate(detail.activityDate)} {detail.startTime}~{detail.endTime}
               </td>
               <th>모임장소</th>
@@ -91,13 +97,13 @@ export default async function ActivityPrintPage({
             </tr>
             <tr>
               <th>모임주제</th>
-              <td className="value" colSpan={3}>
+              <td className="value cell-topic" colSpan={3}>
                 {detail.topic}
               </td>
             </tr>
             <tr>
               <th>모임내용</th>
-              <td className="value cell-lg" colSpan={3}>
+              <td className="value cell-content" colSpan={3}>
                 {detail.content}
               </td>
             </tr>
@@ -106,7 +112,7 @@ export default async function ActivityPrintPage({
                 모임평가
                 <br />및 소감
               </th>
-              <td className="value cell-md" colSpan={3}>
+              <td className="value cell-evaluation" colSpan={3}>
                 {detail.evaluation}
               </td>
             </tr>
@@ -116,7 +122,7 @@ export default async function ActivityPrintPage({
                 <br />
                 명단
               </th>
-              <td colSpan={3}>
+              <td className="cell-participants" colSpan={3}>
                 <ParticipantTable detail={detail} />
               </td>
             </tr>
@@ -126,7 +132,7 @@ export default async function ActivityPrintPage({
                 <br />
                 사용내역
               </th>
-              <td colSpan={3}>
+              <td className="cell-budget" colSpan={3}>
                 <BudgetTable detail={detail} />
               </td>
             </tr>
@@ -139,7 +145,7 @@ export default async function ActivityPrintPage({
         <article key={pageIndex} className="sheet print-page">
           <table className="form-table">
             <colgroup>
-              <col style={{ width: "14mm" }} />
+              <col style={{ width: "16.4mm" }} />
               <col />
             </colgroup>
             <tbody>
@@ -161,7 +167,7 @@ export default async function ActivityPrintPage({
                     </>
                   ) : null}
                 </th>
-                <td>
+                <td className="cell-photos">
                   <div className="photo-grid">
                     {page.map((photo) => (
                       <figure key={photo.photoId} className="photo-item">
@@ -191,7 +197,7 @@ export default async function ActivityPrintPage({
         <article className="sheet print-page">
           <table className="form-table">
             <colgroup>
-              <col style={{ width: "14mm" }} />
+              <col style={{ width: "16.4mm" }} />
               <col />
             </colgroup>
             <tbody>
@@ -204,7 +210,7 @@ export default async function ActivityPrintPage({
                   사
                   <br />진
                 </th>
-                <td className="cell-lg">
+                <td className="cell-photos">
                   <p className="empty-note">등록된 사진이 없습니다.</p>
                 </td>
               </tr>

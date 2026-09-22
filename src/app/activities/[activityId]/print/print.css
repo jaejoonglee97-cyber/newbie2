@@ -10,18 +10,18 @@
 
 @page {
   size: A4 portrait;
-  margin: 15mm;
+  margin: 20mm;
 }
 
 .sheet {
-  /* 화면에서도 A4 폭으로 보여 인쇄 결과를 예측할 수 있게 한다. */
-  width: 180mm;
+  /* 화면에서도 인쇄와 같은 폭(210mm - 좌우 20mm)으로 보여 준다. */
+  width: 170mm;
   margin: 0 auto;
   background: #ffffff;
   color: #000000;
-  /* 양식이 한글(HWP) 문서라 본문 10pt 에 맞춘다. */
+  /* 양식의 본문 글자는 10pt 다. (PDF 의 83 × 0.1199 배율) */
   font-size: 10pt;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 /* ── 문서 제목 ───────────────────────────────────────────────── */
@@ -31,12 +31,16 @@
  * 예전에는 아래 선을 그었는데 양식과 달라 뺐다.
  */
 .doc-title {
-  margin: 0 0 8mm;
+  /*
+   * 양식의 제목은 14pt 굵은 글씨다. (PDF 의 117 × 0.1199 배율)
+   * 제목 아래 작성자 칸까지의 간격도 양식과 같은 12.6mm 로 둔다.
+   */
+  margin: 0 0 12.6mm;
   text-align: center;
-  font-size: 15pt;
+  font-size: 14pt;
   font-weight: 700;
   line-height: 1.5;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 /* 결과보고서 상단 로고. 양식과 같이 왼쪽에 둔다. */
@@ -47,22 +51,30 @@
 }
 
 /* 활동일지의 작성자 칸. 양식은 제목 아래 오른쪽에 작은 표로 둔다. */
+/*
+ * 작성자 칸. 양식은 제목과 본문 표 사이 오른쪽에 둔다.
+ * 칸 너비(항목 32.5mm, 값 16.5mm)와 높이(6.5mm), 아래 간격(4.7mm)은
+ * 양식에서 잰 값이다.
+ */
 .author-line {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 3mm;
+  margin-bottom: 4.7mm;
 }
 
 .author-line table {
   border-collapse: collapse;
-  min-width: 60mm;
+  table-layout: fixed;
+  width: 49mm;
 }
 
 .author-line th,
 .author-line td {
-  border: 1px solid #000000;
-  padding: 1.5mm 3mm;
+  border: 0.5pt solid #000000;
+  padding: 0.8mm 2mm;
+  height: 6.5mm;
   font-size: 10pt;
+  vertical-align: middle;
 }
 
 .author-line th {
@@ -70,7 +82,11 @@
   font-weight: 700;
   text-align: center;
   white-space: nowrap;
-  width: 22mm;
+  width: 32.5mm;
+}
+
+.author-line td {
+  text-align: center;
 }
 
 /* ── 양식 표 ─────────────────────────────────────────────────── */
@@ -79,16 +95,22 @@
  * 양식의 표는 검은 실선 테두리에 항목 열만 회색이다.
  * 항목 이름은 가운데 정렬한다.
  */
+/*
+ * 양식의 선은 가는 실선이다. 바깥 테두리가 안쪽 칸 선보다 조금 굵다.
+ * (PDF 에서 잰 굵기는 0.13~0.28pt 인데, 그대로 쓰면 프린터에 따라 선이
+ * 안 나오므로 인쇄되는 최소 굵기인 0.5pt 까지만 낮춘다.)
+ */
 .form-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+  border: 0.8pt solid #000000;
 }
 
 .form-table th,
 .form-table td {
-  border: 1px solid #000000;
-  padding: 2mm 3mm;
+  border: 0.5pt solid #000000;
+  padding: 1.5mm 2.5mm;
   vertical-align: top;
   text-align: left;
   word-break: break-word;
@@ -107,23 +129,36 @@
 }
 
 /*
- * 항목별 최소 칸 높이.
+ * 항목별 최소 칸 높이. 모두 양식에서 잰 값이다.
  *
- * 표의 td 에 준 height 는 최소 높이로 동작한다. 내용이 길면 칸이 늘어난다.
- * 양식은 빈 서식이라 칸이 크지만, 그 높이를 그대로 쓰면 실제 값이 들어갔을 때
- * 1페이지가 A4 인쇄 영역(267mm)을 넘어 양식의 페이지 구성이 깨진다.
- * 내용이 적을 때 양식처럼 보일 만큼만 남기고 줄였다.
+ * td 의 height 는 최소 높이로 동작한다. 값이 짧으면 양식의 빈 칸과 같은
+ * 높이로 보이고, 길면 칸이 늘어난다.
+ *
+ * 여섯 칸을 더하면 201.7mm 이고 제목·작성자 칸까지 합쳐도 A4 인쇄 영역
+ * (297 - 위아래 20mm = 257mm) 안에 들어간다.
  */
-.cell-lg {
-  height: 50mm;
+.cell-datetime {
+  height: 8.5mm;
 }
 
-.cell-md {
-  height: 28mm;
+.cell-topic {
+  height: 10.6mm;
 }
 
-.cell-sm {
-  height: 18mm;
+.cell-content {
+  height: 63.2mm;
+}
+
+.cell-evaluation {
+  height: 24.7mm;
+}
+
+.cell-participants {
+  height: 75.4mm;
+}
+
+.cell-budget {
+  height: 19.3mm;
 }
 
 /* 가운데 정렬이 필요한 칸 */
@@ -147,7 +182,7 @@
 
 .inner-table th,
 .inner-table td {
-  border: 1px solid #767676;
+  border: 0.5pt solid #767676;
   padding: 0.8mm 2mm;
   text-align: left;
 }
@@ -235,7 +270,7 @@
 
 /* 번호 절의 본문 입력 영역 */
 .answer-box {
-  border: 1px solid #000000;
+  border: 0.5pt solid #000000;
   padding: 3mm;
   min-height: 32mm;
   white-space: pre-wrap;
@@ -248,12 +283,17 @@
  * 사진이 들어가는 큰 칸이 있는 구조다.
  */
 .vertical-label {
-  width: 14mm;
+  width: 16.4mm;
   text-align: center;
   vertical-align: middle;
   font-weight: 700;
   /* 한 글자씩 세로로 쌓는다. */
-  line-height: 1.5;
+  line-height: 1.6;
+}
+
+/* 양식의 사진 칸은 96mm 높이다. */
+.cell-photos {
+  height: 96mm;
 }
 
 .photo-grid {
@@ -269,10 +309,11 @@
 .photo-item img {
   display: block;
   width: 100%;
-  height: 58mm;
+  /* 2행이 양식의 96mm 칸에 들어가도록 잡은 높이다. */
+  height: 40mm;
   object-fit: contain;
   background: #f7f7f7;
-  border: 1px solid #767676;
+  border: 0.5pt solid #767676;
 }
 
 .photo-caption {
@@ -334,8 +375,14 @@
     min-height: 100vh;
   }
 
+  /*
+   * 화면 미리보기는 A4 실물 크기로 보여 준다.
+   * 폭 210mm 에 여백 20mm 를 주면 본문 폭이 인쇄와 같은 170mm 가 된다.
+   * 여기서 폭을 170mm 로 두면 미리보기만 좁아져 인쇄 결과와 달라진다.
+   */
   .sheet {
-    padding: 15mm;
+    width: 210mm;
+    padding: 20mm;
     box-shadow: 0 2px 16px rgb(15 23 42 / 0.12);
     border-radius: 2px;
   }

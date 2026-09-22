@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ACCEPTED_IMAGE_MIME, compressImage, type CompressedImage } from "@/lib/image-compress";
 
@@ -24,6 +24,8 @@ type Props = {
  * 활동 사진 여러 장 첨부 칸.
  *
  * 촬영과 앨범 선택을 모두 지원하고, 앨범은 여러 장을 한 번에 고를 수 있다.
+ * 끌어다 놓기와 붙여넣기로도 넣을 수 있다. 화면을 갈무리해 바로 붙이거나
+ * 탐색기에서 여러 장을 끌어오는 것이 파일 고르기 창을 거치는 것보다 빠르다.
  * 사진별 설명과 대표 사진 지정을 함께 받는다. (LOG-06, LOG-07)
  */
 export function PhotoField({ photos, onChange, disabled, error }: Props) {
@@ -31,15 +33,22 @@ export function PhotoField({ photos, onChange, disabled, error }: Props) {
 
   const [working, setWorking] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
-  async function handleFiles(files: FileList | null, input: HTMLInputElement) {
+  /*
+   * 끌기가 자식 요소를 지날 때마다 dragleave 가 뜬다. 들어오고 나간 횟수를
+   * 세어 정말 영역을 벗어났을 때만 표시를 끈다.
+   */
+  const dragDepth = useRef(0);
+
+  async function handleFiles(files: File[] | FileList | null, input?: HTMLInputElement) {
     setLocalError(null);
     if (!files || files.length === 0) return;
 
     const room = MAX_PHOTOS - photos.length;
     if (room <= 0) {
       setLocalError(`사진은 최대 ${MAX_PHOTOS}장까지 올릴 수 있습니다.`);
-      input.value = "";
+      if (input) input.value = "";
       return;
     }
 
@@ -86,9 +95,50 @@ export function PhotoField({ photos, onChange, disabled, error }: Props) {
       setLocalError("이미지를 처리하지 못했습니다. 다른 사진으로 시도해 주세요.");
     } finally {
       setWorking(false);
-      input.value = "";
+      // 같은 파일을 다시 골라도 change 가 일어나게 값을 비운다.
+      if (input) input.value = "";
     }
   }
+
+  /*
+   * 어디서 붙여넣어도 사진이 들어가게 한다.
+   *
+   * 화면을 갈무리한 뒤 Ctrl+V 로 바로 붙이는 것이 가장 빠른 길이다.
+   * 클립보드에 그림이 없으면 아무것도 하지 않으므로 글자 붙여넣기는
+   * 그대로 동작한다.
+   */
+  useEffect(() => {
+    if (disabled) return;
+
+    function onPaste(event: ClipboardEvent) {
+      const files = imageFilesFrom(event.clipboardData);
+      if (files.length === 0) return;
+
+      event.preventDefault();
+      void handleFiles(files);
+    }
+
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  });
+
+  /*
+   * 칸 바깥에 사진을 떨어뜨렸을 때 브라우저가 그 파일로 이동해 버리는 것을 막는다.
+   * 작성 중이던 활동일지가 통째로 날아간다.
+   */
+  useEffect(() => {
+    function swallow(event: DragEvent) {
+      event.preventDefault();
+    }
+
+    window.addEventListener("dragover", swallow);
+    window.addEventListener("drop", swallow);
+
+    return () => {
+      window.removeEventListener("dragover", swallow);
+      window.removeEventListener("drop", swallow);
+    };
+  }, []);
 
   function updateCaption(key: string, caption: string) {
     onChange(photos.map((photo) => (photo.key === key ? { ...photo, caption } : photo)));
@@ -131,7 +181,49 @@ export function PhotoField({ photos, onChange, disabled, error }: Props) {
         먼저 보입니다.
       </p>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div
+        onDragEnter={(event) => {
+          if (busy) return;
+          event.preventDefault();
+          dragDepth.current += 1;
+          setDragging(true);
+        }}
+        onDragOver={(event) => {
+          // 막지 않으면 브라우저가 파일을 열어 버려 drop 이 오지 않는다.
+          event.preventDefault();
+        }}
+        onDragLeave={() => {
+          dragDepth.current -= 1;
+          if (dragDepth.current <= 0) {
+            dragDepth.current = 0;
+            setDragging(false);
+          }
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          dragDepth.current = 0;
+          setDragging(false);
+          if (busy) return;
+
+          const files = imageFilesFrom(event.dataTransfer);
+          if (files.length === 0) {
+            setLocalError("JPG, PNG, WEBP 형식의 사진만 올릴 수 있습니다.");
+            return;
+          }
+
+          void handleFiles(files);
+        }}
+        className={`mt-3 rounded-[14px] border-2 border-dashed p-3 transition-colors ${
+          dragging ? "border-brand-blue bg-brand-blue/5" : "border-line bg-canvas/40"
+        }`}
+      >
+        <p className="mb-3 text-center text-xs font-semibold text-ink-muted">
+          {dragging
+            ? "여기에 놓으면 추가됩니다"
+            : "사진을 끌어다 놓거나 Ctrl+V 로 붙여넣어도 됩니다"}
+        </p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
         <label className={fileButtonClass(busy)} htmlFor={`${inputId}-camera`}>
           <span aria-hidden="true">📷</span>
           지금 촬영하기
@@ -156,9 +248,10 @@ export function PhotoField({ photos, onChange, disabled, error }: Props) {
             multiple
             disabled={busy}
             onChange={(event) => void handleFiles(event.target.files, event.target)}
-            className="sr-only"
-          />
-        </label>
+              className="sr-only"
+            />
+          </label>
+        </div>
       </div>
 
       {working ? (
@@ -298,4 +391,27 @@ function fileButtonClass(disabled: boolean): string {
     "flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink-soft transition-colors",
     disabled ? "cursor-not-allowed opacity-60" : "hover:border-brand-blue/50 hover:text-brand-blue",
   ].join(" ");
+}
+
+/**
+ * 끌어온 것이나 클립보드에서 사진 파일만 골라낸다.
+ *
+ * 글자를 붙여넣으면 빈 배열이 나오므로, 부르는 쪽에서 아무것도 하지 않고
+ * 넘어가면 된다.
+ */
+function imageFilesFrom(source: DataTransfer | null): File[] {
+  if (!source) return [];
+
+  const files = Array.from(source.files ?? []);
+  if (files.length > 0) {
+    return files.filter((file) => ACCEPTED_IMAGE_MIME.includes(file.type));
+  }
+
+  // 일부 브라우저는 붙여넣은 그림을 files 가 아니라 items 에만 담는다.
+  return Array.from(source.items ?? [])
+    .filter((item) => item.kind === "file" && ACCEPTED_IMAGE_MIME.includes(item.type))
+    .flatMap((item) => {
+      const file = item.getAsFile();
+      return file ? [file] : [];
+    });
 }
