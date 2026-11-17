@@ -35,26 +35,52 @@ export async function getAccessToken(): Promise<string> {
   return token;
 }
 
+/**
+ * 한도에 걸렸을 때 기다리는 시간. 뒤로 갈수록 길게 기다린다.
+ *
+ * Google Sheets 는 서비스 계정 하나당 분당 읽기 60회, 쓰기 60회까지만
+ * 받는다. 넘으면 429 를 주는데, 잠시 뒤 다시 보내면 대개 통과한다.
+ * 그대로 실패로 돌려주면 활동일지를 저장하다 중간에 멈춘다.
+ */
+const RETRY_DELAYS_MS = [1000, 2500, 5000];
+
 async function authorizedFetch(path: string, init?: RequestInit): Promise<Response> {
   const token = await getAccessToken();
   const { spreadsheetId } = getSheetsCredentials();
 
-  const response = await fetch(`${API_BASE}/${spreadsheetId}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-    cache: "no-store",
-  });
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await fetch(`${API_BASE}/${spreadsheetId}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
+    if (response.ok) {
+      return response;
+    }
+
+    /*
+     * 429(한도 초과)와 503(일시 장애)만 다시 보낸다. 둘 다 요청을 처리하지
+     * 않았다는 뜻이라 다시 보내도 같은 줄이 두 번 쓰이지 않는다.
+     * 500 은 처리됐는지 알 수 없으므로 다시 보내지 않는다.
+     */
+    const retryable = response.status === 429 || response.status === 503;
+    const delay = RETRY_DELAYS_MS[attempt];
+
+    if (retryable && delay !== undefined) {
+      await response.text().catch(() => "");
+      console.warn(`[sheets] ${response.status} 응답. ${delay}ms 뒤 다시 시도합니다. (${path})`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      continue;
+    }
+
     const body = await response.text();
     throw new SheetsApiError(response.status, body.slice(0, 500), path);
   }
-
-  return response;
 }
 
 export class SheetsApiError extends Error {
@@ -201,6 +227,42 @@ export async function appendRow(sheetName: string, values: SheetRow): Promise<vo
     {
       method: "POST",
       body: JSON.stringify({ values: [row] }),
+    },
+  );
+}
+
+/**
+ * 여러 줄을 한 번에 추가한다.
+ *
+ * 한 줄씩 appendRow 를 부르면 줄마다 헤더 읽기 1회와 쓰기 1회가 든다.
+ * 참여자 22명이면 그것만 44회라 분당 한도(읽기·쓰기 각 60회)에 금방 닿는다.
+ * 여기서는 몇 줄이든 헤더 읽기 1회, 쓰기 1회로 끝난다. 한 번에 들어가므로
+ * 일부만 들어가는 일도 없다.
+ */
+export async function appendRows(sheetName: string, rows: SheetRow[]): Promise<void> {
+  if (rows.length === 0) return;
+
+  const headers = await readHeaders(sheetName);
+
+  if (headers.length === 0) {
+    throw new Error(`${sheetName} 시트에 헤더가 없습니다. setup/sheets-setup.gs 를 먼저 실행하세요.`);
+  }
+
+  const unknown = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter(
+    (key) => !headers.includes(key),
+  );
+  if (unknown.length > 0) {
+    throw new Error(`${sheetName} 시트에 없는 컬럼입니다: ${unknown.join(", ")}`);
+  }
+
+  const values = rows.map((row) => headers.map((header) => row[header] ?? ""));
+  const range = encodeURIComponent(`${sheetName}!A1`);
+
+  await authorizedFetch(
+    `/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+    {
+      method: "POST",
+      body: JSON.stringify({ values }),
     },
   );
 }
@@ -369,6 +431,61 @@ export async function deleteRowsWhere(sheetName: string, match: SheetRow): Promi
   });
 
   return rows.length;
+}
+
+/**
+ * column 값이 values 중 하나인 행을 한 번에 지운다. 지운 행 수를 돌려준다.
+ *
+ * also 를 주면 그 조건까지 맞는 행만 지운다. 다른 활동에 같은 ID 가 있어도
+ * 엉뚱한 행을 지우지 않게 activity_id 를 함께 거는 데 쓴다.
+ *
+ * deleteRowsWhere 를 값마다 부르면 값마다 읽기·쓰기가 한 번씩 든다.
+ * 여기서는 읽기 1회, 쓰기 1회다.
+ */
+export async function deleteRowsWhereIn(
+  sheetName: string,
+  column: string,
+  values: string[],
+  also: SheetRow = {},
+): Promise<number> {
+  if (values.length === 0) return 0;
+
+  const { headers, rows } = await findRows(sheetName, also);
+  if (rows.length === 0) return 0;
+
+  const index = headers.indexOf(column);
+  if (index < 0) {
+    throw new Error(`${sheetName} 시트에 없는 컬럼입니다: ${column}`);
+  }
+
+  const wanted = new Set(values);
+  const rowNumbers = rows
+    .filter((row) => wanted.has(String(row.values[index] ?? "").trim()))
+    .map((row) => row.rowNumber)
+    // 아래쪽부터 지워야 위 행의 번호가 밀리지 않는다.
+    .sort((a, b) => b - a);
+
+  if (rowNumbers.length === 0) return 0;
+
+  const sheetId = await getSheetId(sheetName);
+
+  await authorizedFetch(":batchUpdate", {
+    method: "POST",
+    body: JSON.stringify({
+      requests: rowNumbers.map((rowNumber) => ({
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: "ROWS",
+            startIndex: rowNumber - 1,
+            endIndex: rowNumber,
+          },
+        },
+      })),
+    }),
+  });
+
+  return rowNumbers.length;
 }
 
 /** 0 → A, 25 → Z, 26 → AA */

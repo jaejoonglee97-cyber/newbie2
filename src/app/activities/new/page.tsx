@@ -64,7 +64,6 @@ export default async function NewActivityPage() {
         <div className="mt-10">
           <ActivityLogForm
             members={members}
-            minimumParticipants={settings.minimumParticipants}
             activityStartDate={settings.activityStartDate}
             activityEndDate={settings.activityEndDate}
             nextSessionNumber={nextSessionNumber}

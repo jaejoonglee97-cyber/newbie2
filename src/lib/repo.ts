@@ -24,6 +24,26 @@ export async function appendRow(sheetName: string, values: SheetRow): Promise<vo
   return isMockMode() ? mock.appendRow(sheetName, values) : sheets.appendRow(sheetName, values);
 }
 
+/** 여러 줄을 한 번에 추가한다. 시트 호출 한 번으로 끝난다. */
+export async function appendRows(sheetName: string, rows: SheetRow[]): Promise<void> {
+  return isMockMode() ? mock.appendRows(sheetName, rows) : sheets.appendRows(sheetName, rows);
+}
+
+/**
+ * column 값이 values 중 하나인 행을 한 번에 지운다. 지운 행 수를 돌려준다.
+ * also 를 주면 그 조건까지 맞는 행만 지운다.
+ */
+export async function deleteRowsWhereIn(
+  sheetName: string,
+  column: string,
+  values: string[],
+  also: SheetRow = {},
+): Promise<number> {
+  return isMockMode()
+    ? mock.deleteRowsWhereIn(sheetName, column, values, also)
+    : sheets.deleteRowsWhereIn(sheetName, column, values, also);
+}
+
 /**
  * 조건에 맞는 행의 일부 컬럼만 고친다. 고친 행 수를 돌려준다.
  * match 의 모든 컬럼이 일치하는 행만 대상이다.

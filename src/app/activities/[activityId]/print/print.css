@@ -332,6 +332,19 @@
 /* ── 페이지 나누기 ───────────────────────────────────────────── */
 
 @media print {
+  /*
+   * 사이트 바탕색(옅은 하늘색)이 종이에 찍히지 않게 한다.
+   *
+   * 아래에서 회색 항목 칸이 빠지지 않도록 print-color-adjust 를 exact 로
+   * 두는데, 그러면 body 의 바탕색까지 그대로 인쇄된다. 표가 끝난 아래
+   * 빈 공간이 하늘색으로 칠해져 나오던 원인이다.
+   */
+  html,
+  body,
+  .paper-bg {
+    background: #ffffff !important;
+  }
+
   .no-print {
     display: none !important;
   }

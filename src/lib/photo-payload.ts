@@ -65,6 +65,18 @@ export function parsePhotos(raw: unknown): PhotoParseResult {
   return { ok: true, photos };
 }
 
+/**
+ * 저장 뒤 따로 올리겠다고 알려 온 사진 장수.
+ *
+ * 사진은 첫 장만 저장 요청에 싣고 나머지는 한 장씩 보낸다. "사진 최소 1장"
+ * 조건을 판단할 때만 쓰는 값이라 그대로 믿되, 범위만 맞춘다.
+ */
+export function readPendingPhotoCount(payload: Record<string, unknown>): number {
+  const value = Math.trunc(Number(payload.pendingPhotoCount));
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.min(value, MAX_PHOTOS);
+}
+
 /** 요청 본문을 객체로 읽는다. 형식이 아니면 null 을 돌려준다. */
 export async function readJsonObject(
   request: Request,

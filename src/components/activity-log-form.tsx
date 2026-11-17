@@ -55,7 +55,6 @@ export type ActivityEditInitial = {
 
 type Props = {
   members: MemberOption[];
-  minimumParticipants: number;
   activityStartDate: string;
   activityEndDate: string;
   nextSessionNumber: number;
@@ -100,7 +99,6 @@ function newBudgetRow(): BudgetRow {
 
 export function ActivityLogForm({
   members,
-  minimumParticipants,
   activityStartDate,
   activityEndDate,
   nextSessionNumber,
@@ -170,6 +168,10 @@ export function ActivityLogForm({
   const [errors, setErrors] = useState<ActivityLogFieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /** 사진을 한 장씩 올리는 동안 보여 줄 진행 문구 */
+  const [progress, setProgress] = useState<string | null>(null);
+  /** 저장은 됐는데 사진 일부가 실패했을 때, 상세 화면으로 가는 길을 보여 준다. */
+  const [savedActivityId, setSavedActivityId] = useState<string | null>(null);
 
   const memberById = useMemo(
     () => new Map(members.map((member) => [member.memberId, member])),
@@ -231,61 +233,80 @@ export function ActivityLogForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
+    setProgress(null);
     setMessage(null);
     setErrors({});
 
     const selected = participants.filter((p) => p.selected);
 
+    /*
+     * 새 사진은 첫 장만 저장 요청에 싣고 나머지는 저장 뒤 한 장씩 보낸다.
+     *
+     * 한 요청에 몰아 담으면 Vercel 의 요청 크기 한도(4.5MB)를 넘는다.
+     * 사진 900KB 가 base64 로 1.2MB 가 되므로 네 장이면 넘고, 그때는 서버가
+     * JSON 대신 오류 화면을 돌려줘 원인 없이 "오류"만 뜬다.
+     * 대표로 고른 사진을 첫 장으로 둔다. 저장 요청에 실린 사진이 대표가 된다.
+     */
+    const ordered = [...photos].sort((a, b) => Number(b.isCover) - Number(a.isCover));
+    const [firstPhoto, ...laterPhotos] = ordered;
+
     try {
       const response = await fetch(
         isEditing ? `/api/activities/${encodeURIComponent(initial.activityId)}` : "/api/activities",
         {
-        method: isEditing ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionNumber: Number(sessionNumber),
-          removedPhotoIds,
-          authorMemberId,
-          topic,
-          objective,
-          expectedEffect,
-          activityDate,
-          startTime,
-          endTime,
-          location,
-          content,
-          evaluation,
-          participants: selected.map((p) => ({
-            memberId: p.memberId,
-            planned: true,
-            attendanceStatus: p.attendanceStatus,
-            absenceNote: p.absenceNote,
-          })),
-          budgetItems: budgetRows.map((row) => ({
-            category: row.category,
-            itemName: row.itemName,
-            calculationBasis: row.calculationBasis,
-            amount: Math.trunc(Number(row.amount.replace(/[^\d]/g, "")) || 0),
-          })),
-          photos: photos.map((photo) => ({
-            mimeType: photo.mimeType,
-            dataBase64: photo.dataBase64,
-            caption: photo.caption,
-            isCover: photo.isCover,
-          })),
-        }),
+          method: isEditing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionNumber: Number(sessionNumber),
+            removedPhotoIds,
+            authorMemberId,
+            topic,
+            objective,
+            expectedEffect,
+            activityDate,
+            startTime,
+            endTime,
+            location,
+            content,
+            evaluation,
+            participants: selected.map((p) => ({
+              memberId: p.memberId,
+              planned: true,
+              attendanceStatus: p.attendanceStatus,
+              absenceNote: p.absenceNote,
+            })),
+            budgetItems: budgetRows.map((row) => ({
+              category: row.category,
+              itemName: row.itemName,
+              calculationBasis: row.calculationBasis,
+              amount: Math.trunc(Number(row.amount.replace(/[^\d]/g, "")) || 0),
+            })),
+            photos: firstPhoto ? [toPayload(firstPhoto)] : [],
+            // 저장 뒤 따로 올릴 장수. 사진 최소 1장 조건을 판단할 때만 쓴다.
+            pendingPhotoCount: laterPhotos.length,
+          }),
         },
       );
 
-      const data = (await response.json()) as {
-        ok: boolean;
+      const data = await readResult<{
         activityId?: string;
-        photosFailed?: number;
         errors?: ActivityLogFieldErrors;
-        message?: string;
-      };
+      }>(response);
 
       if (data.ok && data.activityId) {
+        const failedPhotos = await uploadRemainingPhotos(data.activityId, laterPhotos);
+
+        if (failedPhotos > 0) {
+          // 활동일지는 저장됐다. 화면을 떠나지 않고 무엇이 남았는지 알린다.
+          setPhotos(laterPhotos.slice(laterPhotos.length - failedPhotos));
+          setMessage(
+            `활동일지는 저장했습니다. 다만 사진 ${failedPhotos}장은 올리지 못했습니다. ` +
+              `상세 화면의 수정 버튼에서 다시 추가해 주세요.`,
+          );
+          setSavedActivityId(data.activityId);
+          return;
+        }
+
         router.push(`/activities/${data.activityId}`);
         // 상세 화면이 방금 고친 값을 읽도록 서버 데이터를 다시 받아온다.
         router.refresh();
@@ -294,7 +315,13 @@ export function ActivityLogForm({
 
       if (data.errors) {
         setErrors(data.errors);
-        setMessage("입력값을 확인해 주세요.");
+        // 어느 칸이 문제인지 위에서도 바로 보이게 문구를 모아 보여 준다.
+        const reasons = Object.values(data.errors).filter(Boolean);
+        setMessage(
+          reasons.length > 0
+            ? `저장하지 못했습니다. ${reasons.join(" / ")}`
+            : "입력값을 확인해 주세요.",
+        );
         return;
       }
 
@@ -303,18 +330,53 @@ export function ActivityLogForm({
       setMessage("네트워크 오류가 발생했습니다. 연결을 확인한 뒤 다시 시도해 주세요.");
     } finally {
       setSubmitting(false);
+      setProgress(null);
     }
+  }
+
+  /** 저장 뒤 남은 사진을 한 장씩 올린다. 실패한 장수를 돌려준다. */
+  async function uploadRemainingPhotos(
+    activityId: string,
+    rest: SelectedPhoto[],
+  ): Promise<number> {
+    let failedCount = 0;
+
+    for (let i = 0; i < rest.length; i += 1) {
+      setProgress(`사진 ${i + 2}/${rest.length + 1}장 올리는 중`);
+
+      try {
+        const response = await fetch(`/api/activities/${encodeURIComponent(activityId)}/photos`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(toPayload(rest[i])),
+        });
+        const result = await readResult(response);
+        if (!result.ok) failedCount += 1;
+      } catch {
+        failedCount += 1;
+      }
+    }
+
+    return failedCount;
   }
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-10">
       {message ? (
-        <p
+        <div
           role="alert"
-          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm font-medium text-danger"
+          className="rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm font-medium leading-relaxed text-danger"
         >
           {message}
-        </p>
+          {savedActivityId ? (
+            <Link
+              href={`/activities/${savedActivityId}`}
+              className="ml-2 font-bold underline"
+            >
+              저장된 활동일지 보기
+            </Link>
+          ) : null}
+        </div>
       ) : null}
 
       {/* 기본 정보 */}
@@ -512,21 +574,9 @@ export function ActivityLogForm({
       </Section>
 
       {/* 참여자 */}
-      <Section
-        title="참여자 및 출석"
-        description={`실제 참석자가 ${minimumParticipants}명 이상이어야 저장할 수 있습니다.`}
-      >
-        <p
-          className={`rounded-lg px-4 py-3 text-sm font-semibold ${
-            attendedCount >= minimumParticipants
-              ? "bg-success-soft text-success"
-              : "bg-warning-soft text-warning"
-          }`}
-        >
+      <Section title="참여자 및 출석" description="모임에 온 사람을 체크하고 출석 상태를 고릅니다.">
+        <p className="rounded-lg bg-canvas px-4 py-3 text-sm font-semibold text-ink-soft">
           현재 실제 참석 {attendedCount}명
-          {attendedCount >= minimumParticipants
-            ? " · 최소 인원 충족"
-            : ` · ${minimumParticipants - attendedCount}명 부족`}
         </p>
 
         {members.length === 0 ? (
@@ -669,7 +719,7 @@ export function ActivityLogForm({
                       onChange={(event) =>
                         updateBudget(row.key, { calculationBasis: event.target.value })
                       }
-                      placeholder="예: 7명 × 15,000원"
+                      placeholder="예: 10명 × 15,000원 (선택)"
                       aria-label="산출 근거"
                       className="w-full rounded-md border border-line bg-surface px-2 py-2"
                     />
@@ -839,7 +889,7 @@ export function ActivityLogForm({
 
       {submitting ? (
         <p role="status" className="text-sm text-ink-muted">
-          사진을 올리는 중입니다. 화면을 닫지 말고 잠시 기다려 주세요.
+          {progress ?? "저장하는 중입니다."} 화면을 닫지 말고 잠시 기다려 주세요.
         </p>
       ) : null}
     </form>
@@ -976,4 +1026,45 @@ function FeedbackReference({ summary }: { summary: SessionFeedback }) {
       ) : null}
     </details>
   );
+}
+
+function toPayload(photo: SelectedPhoto) {
+  return {
+    mimeType: photo.mimeType,
+    dataBase64: photo.dataBase64,
+    caption: photo.caption,
+    isCover: photo.isCover,
+  };
+}
+
+/**
+ * 응답을 읽는다. JSON 이 아니어도 원인을 알 수 있는 문구로 바꿔 돌려준다.
+ *
+ * 요청이 너무 크거나(413) 시간이 오래 걸리면(504) 우리 코드가 아니라
+ * Vercel 이 막는다. 그때는 JSON 이 아닌 화면이 오므로 그대로 읽으면 예외가
+ * 나고, 화면에는 원인 없이 "네트워크 오류"만 떴다.
+ */
+async function readResult<T extends object = object>(
+  response: Response,
+): Promise<{ ok: boolean; message?: string } & Partial<T>> {
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text) as { ok: boolean; message?: string } & Partial<T>;
+  } catch {
+    const byStatus: Record<number, string> = {
+      401: "로그인이 풀렸습니다. 다시 로그인한 뒤 저장해 주세요. 입력한 내용은 복사해 두세요.",
+      403: "운영자로 로그인해야 저장할 수 있습니다.",
+      413: "보내는 내용이 너무 큽니다. 사진 수를 줄여 다시 시도해 주세요.",
+      429: "잠시 요청이 몰렸습니다. 1분 뒤 다시 저장해 주세요.",
+      504: "저장이 오래 걸려 끊겼습니다. 목록에서 저장됐는지 확인한 뒤 다시 시도해 주세요.",
+    };
+
+    return {
+      ok: false,
+      message:
+        byStatus[response.status] ??
+        `저장하지 못했습니다. (오류 ${response.status}) 잠시 후 다시 시도해 주세요.`,
+    } as { ok: boolean; message?: string } & Partial<T>;
+  }
 }

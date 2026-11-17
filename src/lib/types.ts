@@ -12,7 +12,6 @@ export type ProgramSettings = {
   activityStartDate: string;
   activityEndDate: string;
   totalBudget: number;
-  minimumParticipants: number;
   /** 기장 성명 */
   leaderName: string;
   /** 부기장 성명 */

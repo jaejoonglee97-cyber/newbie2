@@ -74,16 +74,7 @@ export default async function AdminPage() {
 
         <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="전체 신청" value={`${records.length}명`} />
-          <Stat
-            label="참여 확정"
-            value={`${confirmed}명`}
-            detail={
-              confirmed < settings.minimumParticipants
-                ? `최소 ${settings.minimumParticipants}명까지 ${settings.minimumParticipants - confirmed}명 부족`
-                : "최소 인원 충족"
-            }
-            warn={confirmed < settings.minimumParticipants}
-          />
+          <Stat label="참여 확정" value={`${confirmed}명`} />
           <Stat label="불참·대기" value={`${excluded}명`} />
           <Stat label="명함 등록" value={`${cards}건`} />
         </dl>

@@ -2,7 +2,15 @@ import "server-only";
 
 import { deleteImages, uploadImage } from "./card-storage";
 import { nowKstIso, parseNumber } from "./format";
-import { appendRow, deleteRowsWhere, patchRowsWhere, readSheet } from "./repo";
+import {
+  appendRow,
+  appendRows,
+  deleteRowsWhere,
+  deleteRowsWhereIn,
+  patchRowsWhere,
+  readSheet,
+  type SheetRow,
+} from "./repo";
 import { getSettings } from "./settings";
 import type {
   ActivityDetail,
@@ -110,16 +118,14 @@ export async function validateActivityLog(
     errors.participants = "참여자를 선택해 주세요.";
   } else if (attendedCount === 0) {
     errors.participants = "실제 참석자를 한 명 이상 체크해 주세요.";
-  } else if (attendedCount < settings.minimumParticipants) {
-    errors.participants = `실제 참석자가 ${settings.minimumParticipants}명 이상이어야 합니다. 현재 ${attendedCount}명입니다.`;
   }
 
-  // 예산
+  // 예산. 산출 근거는 비워도 된다. 빈 줄은 parseBudgetItems 에서 이미 걸러진다.
   const budgetItems = parseBudgetItems(input.budgetItems);
   if (budgetItems.length === 0) {
     errors.budgetItems = "예산 사용내역을 한 줄 이상 입력해 주세요.";
-  } else if (budgetItems.some((item) => !item.itemName || !item.calculationBasis)) {
-    errors.budgetItems = "모든 예산 항목에 항목명과 산출 근거를 입력해 주세요.";
+  } else if (budgetItems.some((item) => !item.itemName)) {
+    errors.budgetItems = "금액을 적은 줄에는 항목명도 입력해 주세요.";
   } else if (budgetItems.some((item) => item.amount <= 0)) {
     errors.budgetItems = "예산 금액은 0원보다 커야 합니다.";
   }
@@ -207,41 +213,20 @@ export async function saveActivityLog(
     updated_at: now,
   });
 
-  const participantSeed = (await readSheet("activity_participants")).length;
-  for (let i = 0; i < input.participants.length; i += 1) {
-    const participant = input.participants[i];
-    await appendRow("activity_participants", {
-      activity_participant_id: `ATP-${pad(participantSeed + i + 1, 6)}`,
-      activity_id: activityId,
-      member_id: participant.memberId,
-      planned: participant.planned ? "TRUE" : "FALSE",
-      attendance_status: participant.attendanceStatus,
-      absence_note: participant.absenceNote,
-      checked_at: now,
-      updated_at: now,
-    });
-  }
+  const [participantRows, budgetRows] = await Promise.all([
+    readSheet("activity_participants"),
+    readSheet("budget_items"),
+  ]);
 
-  const budgetSeed = (await readSheet("budget_items")).length;
-  for (let i = 0; i < input.budgetItems.length; i += 1) {
-    const item = input.budgetItems[i];
-    await appendRow("budget_items", {
-      budget_item_id: `BUD-${pad(budgetSeed + i + 1, 6)}`,
-      activity_id: activityId,
-      // 활동일지에서 입력하는 값은 모두 실제 사용액이다.
-      budget_type: "actual",
-      category: item.category,
-      item_name: item.itemName,
-      calculation_basis: item.calculationBasis,
-      quantity: "",
-      unit_price: "",
-      amount: String(item.amount),
-      evidence_file_url: "",
-      memo: "",
-      created_at: now,
-      updated_at: now,
-    });
-  }
+  await appendRows(
+    "activity_participants",
+    participantRowsFor(activityId, input, nextSeq(participantRows, "activity_participant_id"), now),
+  );
+
+  await appendRows(
+    "budget_items",
+    budgetRowsFor(activityId, input, nextSeq(budgetRows, "budget_item_id"), now),
+  );
 
   await appendRow("activity_logs", {
     activity_log_id: logId,
@@ -258,15 +243,15 @@ export async function saveActivityLog(
     updated_at: now,
   });
 
-  const photoSeed = (await readSheet("photos")).length;
+  const photoSeed = nextSeq(await readSheet("photos"), "photo_id");
   // 대표 사진이 지정되지 않았거나 업로드에 실패했으면 첫 장을 대표로 쓴다.
   const coverIndex = succeeded.findIndex((entry) => entry.photo.isCover);
   const effectiveCover = coverIndex >= 0 ? coverIndex : 0;
 
-  for (let i = 0; i < succeeded.length; i += 1) {
-    const entry = succeeded[i];
-    await appendRow("photos", {
-      photo_id: `PHT-${pad(photoSeed + i + 1, 6)}`,
+  await appendRows(
+    "photos",
+    succeeded.map((entry, i) => ({
+      photo_id: `PHT-${pad(photoSeed + i, 6)}`,
       activity_id: activityId,
       drive_file_id: entry.result!.fileId,
       file_url: entry.result!.fileUrl,
@@ -275,12 +260,12 @@ export async function saveActivityLog(
       sort_order: String(i + 1),
       uploaded_by: input.authorMemberId,
       uploaded_at: now,
-    });
-  }
+    })),
+  );
 
-  const auditSeed = (await readSheet("audit_logs")).length;
+  const auditSeed = nextSeq(await readSheet("audit_logs"), "audit_id");
   await appendRow("audit_logs", {
-    audit_id: `AUD-${pad(auditSeed + 1, 6)}`,
+    audit_id: `AUD-${pad(auditSeed, 6)}`,
     actor_member_id: input.authorMemberId,
     entity_type: "activity_log",
     entity_id: activityId,
@@ -306,8 +291,12 @@ export type UpdateResult = SaveResult & { photosRemoved: number };
  * 인쇄 링크가 어긋나고, 회기 번호는 ID 에 들어 있어 함께 바뀌어야 한다.
  *
  * 참여자와 예산은 줄이 늘거나 줄 수 있어 한 줄씩 맞춰 고치기 어렵다.
- * 해당 활동의 기존 줄을 지우고 새로 넣는다. 사진은 지울 것만 지우고
- * 새로 첨부한 것만 더한다. 이미 있는 사진을 건드리지 않는다.
+ * 새 줄을 먼저 넣고, 그다음 옛 줄을 지운다. 순서가 반대면 지운 직후에
+ * 실패했을 때 그 회기의 출석 기록이 통째로 사라진다. 이 순서라면 실패해도
+ * 옛 줄과 새 줄이 함께 남을 뿐이고, 한 번 더 저장하면 정리된다.
+ *
+ * 시트 호출은 몇 명을 고치든 열댓 번이다. 줄마다 한 번씩 쓰면 22명일 때
+ * 60번이 넘어 분당 한도에 걸리고, 그 자리에서 저장이 멈췄다.
  */
 export async function updateActivityLog(
   activityId: string,
@@ -317,15 +306,19 @@ export async function updateActivityLog(
 ): Promise<UpdateResult> {
   const now = nowKstIso();
 
-  const activities = await readSheet("activities");
-  const target = activities.find((row) => row.activity_id === activityId);
+  const [activities, photoRows, participantRows, budgetRows] = await Promise.all([
+    readSheet("activities"),
+    readSheet("photos"),
+    readSheet("activity_participants"),
+    readSheet("budget_items"),
+  ]);
 
+  const target = activities.find((row) => row.activity_id === activityId);
   if (!target) {
     throw new Error(`활동을 찾지 못했습니다: ${activityId}`);
   }
 
-  // 지울 사진을 먼저 확인한다. 시트에 등록된 것만 지울 수 있다.
-  const photoRows = await readSheet("photos");
+  // 지울 사진은 이 활동에 등록된 것만 인정한다.
   const removable = photoRows.filter(
     (row) => row.activity_id === activityId && removedPhotoIds.includes(row.photo_id),
   );
@@ -333,7 +326,7 @@ export async function updateActivityLog(
   // 새 사진을 먼저 올린다. 여기서 실패하면 시트는 아직 그대로다.
   const uploads = await Promise.all(
     newPhotos.map(async (photo, index) => {
-      const result = await uploadImage("photo", activityId, `add-${index + 1}`, {
+      const result = await uploadImage("photo", activityId, `add-${Date.now()}-${index + 1}`, {
         mimeType: photo.mimeType,
         dataBase64: photo.dataBase64,
       });
@@ -371,78 +364,88 @@ export async function updateActivityLog(
     },
   );
 
-  // 참여자 교체
-  await deleteRowsWhere("activity_participants", { activity_id: activityId });
-  const participantSeed = (await readSheet("activity_participants")).length;
-  for (let i = 0; i < input.participants.length; i += 1) {
-    const participant = input.participants[i];
-    await appendRow("activity_participants", {
-      activity_participant_id: `ATP-${pad(participantSeed + i + 1, 6)}`,
-      activity_id: activityId,
-      member_id: participant.memberId,
-      planned: participant.planned ? "TRUE" : "FALSE",
-      attendance_status: participant.attendanceStatus,
-      absence_note: participant.absenceNote,
-      checked_at: now,
-      updated_at: now,
-    });
-  }
+  // 참여자 교체: 새 줄을 넣은 뒤 옛 줄을 지운다.
+  const oldParticipantIds = participantRows
+    .filter((row) => row.activity_id === activityId)
+    .map((row) => row.activity_participant_id ?? "")
+    .filter(Boolean);
+
+  await appendRows(
+    "activity_participants",
+    participantRowsFor(activityId, input, nextSeq(participantRows, "activity_participant_id"), now),
+  );
+  await deleteRowsWhereIn("activity_participants", "activity_participant_id", oldParticipantIds, {
+    activity_id: activityId,
+  });
 
   // 실제 사용액 교체. 신청 예산(planned)은 건드리지 않는다.
-  await deleteRowsWhere("budget_items", { activity_id: activityId, budget_type: "actual" });
-  const budgetSeed = (await readSheet("budget_items")).length;
-  for (let i = 0; i < input.budgetItems.length; i += 1) {
-    const item = input.budgetItems[i];
-    await appendRow("budget_items", {
-      budget_item_id: `BUD-${pad(budgetSeed + i + 1, 6)}`,
-      activity_id: activityId,
-      budget_type: "actual",
-      category: item.category,
-      item_name: item.itemName,
-      calculation_basis: item.calculationBasis,
-      quantity: "",
-      unit_price: "",
-      amount: String(item.amount),
-      evidence_file_url: "",
-      memo: "",
-      created_at: now,
-      updated_at: now,
-    });
-  }
+  const oldBudgetIds = budgetRows
+    .filter((row) => row.activity_id === activityId && row.budget_type === "actual")
+    .map((row) => row.budget_item_id ?? "")
+    .filter(Boolean);
 
-  // 사진: 지울 것 지우고 새로 올린 것 추가
-  for (const row of removable) {
-    await deleteRowsWhere("photos", { photo_id: row.photo_id });
-  }
+  await appendRows(
+    "budget_items",
+    budgetRowsFor(activityId, input, nextSeq(budgetRows, "budget_item_id"), now),
+  );
+  await deleteRowsWhereIn("budget_items", "budget_item_id", oldBudgetIds, {
+    activity_id: activityId,
+    budget_type: "actual",
+  });
+
+  // 사진: 지울 것 지우고 새로 올린 것 추가.
+  // 예전 번호 매기기로 다른 활동과 사진 번호가 겹쳤을 수 있으므로 반드시 활동으로 한정한다.
+  await deleteRowsWhereIn(
+    "photos",
+    "photo_id",
+    removable.map((row) => row.photo_id ?? ""),
+    { activity_id: activityId },
+  );
   const driveCleanup = await deleteImages(removable.map((row) => row.drive_file_id));
 
-  const photoSeed = (await readSheet("photos")).length;
-  for (let i = 0; i < succeeded.length; i += 1) {
-    const entry = succeeded[i];
-    await appendRow("photos", {
-      photo_id: `PHT-${pad(photoSeed + i + 1, 6)}`,
+  const remainingBefore = photoRows.filter(
+    (row) => row.activity_id === activityId && !removable.includes(row),
+  );
+  const photoSeed = nextSeq(photoRows, "photo_id");
+  const sortSeed =
+    remainingBefore.reduce((max, row) => Math.max(max, parseNumber(row.sort_order ?? "", 0)), 0) +
+    1;
+  const needsCover = !remainingBefore.some((row) => row.is_cover === "TRUE");
+  const coverIndex = Math.max(
+    0,
+    succeeded.findIndex((entry) => entry.photo.isCover),
+  );
+
+  await appendRows(
+    "photos",
+    succeeded.map((entry, i) => ({
+      photo_id: `PHT-${pad(photoSeed + i, 6)}`,
       activity_id: activityId,
       drive_file_id: entry.result!.fileId,
       file_url: entry.result!.fileUrl,
       caption: entry.photo.caption,
-      is_cover: "FALSE",
-      sort_order: String(photoSeed + i + 1),
+      is_cover: needsCover && i === coverIndex ? "TRUE" : "FALSE",
+      sort_order: String(sortSeed + i),
       uploaded_by: input.authorMemberId,
       uploaded_at: now,
-    });
-  }
-
-  // 대표 사진이 사라졌으면 남은 사진 중 첫 장을 대표로 올린다.
-  const remaining = (await readSheet("photos")).filter(
-    (row) => row.activity_id === activityId,
+    })),
   );
-  if (remaining.length > 0 && !remaining.some((row) => row.is_cover === "TRUE")) {
-    await patchRowsWhere("photos", { photo_id: remaining[0].photo_id }, { is_cover: "TRUE" });
+
+  // 대표 사진이 지워졌고 새 사진도 없으면 남은 사진 중 첫 장을 대표로 올린다.
+  if (needsCover && succeeded.length === 0 && remainingBefore.length > 0) {
+    const first = [...remainingBefore].sort(
+      (a, b) => parseNumber(a.sort_order ?? "", 0) - parseNumber(b.sort_order ?? "", 0),
+    )[0];
+    await patchRowsWhere(
+      "photos",
+      { activity_id: activityId, photo_id: first.photo_id ?? "" },
+      { is_cover: "TRUE" },
+    );
   }
 
-  const auditSeed = (await readSheet("audit_logs")).length;
+  const auditSeed = nextSeq(await readSheet("audit_logs"), "audit_id");
   await appendRow("audit_logs", {
-    audit_id: `AUD-${pad(auditSeed + 1, 6)}`,
+    audit_id: `AUD-${pad(auditSeed, 6)}`,
     actor_member_id: input.authorMemberId,
     entity_type: "activity_log",
     entity_id: activityId,
@@ -459,6 +462,116 @@ export async function updateActivityLog(
     photosFailed: failed,
     photosRemoved: removable.length,
   };
+}
+
+/**
+ * 이미 저장된 활동일지에 사진 한 장을 더한다.
+ *
+ * 사진을 한 요청에 몰아 보내면 Vercel 의 요청 크기 한도(4.5MB)를 넘는다.
+ * 사진 900KB 가 base64 로 1.2MB 가 되므로 네 장이면 넘는다. 그때 서버는
+ * JSON 이 아닌 오류 화면을 돌려주고, 화면에는 원인 없이 "오류"만 뜬다.
+ * 그래서 첫 장만 저장 요청에 싣고 나머지는 한 장씩 여기로 보낸다.
+ */
+export async function addActivityPhoto(
+  activityId: string,
+  photo: PhotoInput,
+  actorMemberId: string,
+): Promise<{ added: boolean }> {
+  const [activities, photoRows] = await Promise.all([
+    readSheet("activities"),
+    readSheet("photos"),
+  ]);
+
+  if (!activities.some((row) => row.activity_id === activityId)) {
+    throw new Error(`활동을 찾지 못했습니다: ${activityId}`);
+  }
+
+  const result = await uploadImage("photo", activityId, `add-${Date.now()}`, {
+    mimeType: photo.mimeType,
+    dataBase64: photo.dataBase64,
+  });
+
+  if (!result) {
+    return { added: false };
+  }
+
+  const mine = photoRows.filter((row) => row.activity_id === activityId);
+  const sortOrder =
+    mine.reduce((max, row) => Math.max(max, parseNumber(row.sort_order ?? "", 0)), 0) + 1;
+
+  await appendRow("photos", {
+    photo_id: `PHT-${pad(nextSeq(photoRows, "photo_id"), 6)}`,
+    activity_id: activityId,
+    drive_file_id: result.fileId,
+    file_url: result.fileUrl,
+    caption: photo.caption,
+    // 대표 사진이 아직 없을 때만 대표로 둔다.
+    is_cover: mine.some((row) => row.is_cover === "TRUE") ? "FALSE" : "TRUE",
+    sort_order: String(sortOrder),
+    uploaded_by: actorMemberId,
+    uploaded_at: nowKstIso(),
+  });
+
+  return { added: true };
+}
+
+/** 참여자 줄을 만든다. 저장과 수정이 같은 모양을 쓴다. */
+function participantRowsFor(
+  activityId: string,
+  input: ActivityLogInput,
+  seed: number,
+  now: string,
+): SheetRow[] {
+  return input.participants.map((participant, i) => ({
+    activity_participant_id: `ATP-${pad(seed + i, 6)}`,
+    activity_id: activityId,
+    member_id: participant.memberId,
+    planned: participant.planned ? "TRUE" : "FALSE",
+    attendance_status: participant.attendanceStatus,
+    absence_note: participant.absenceNote,
+    checked_at: now,
+    updated_at: now,
+  }));
+}
+
+/** 실제 사용 예산 줄을 만든다. 활동일지에서 입력하는 값은 모두 실제 사용액이다. */
+function budgetRowsFor(
+  activityId: string,
+  input: ActivityLogInput,
+  seed: number,
+  now: string,
+): SheetRow[] {
+  return input.budgetItems.map((item, i) => ({
+    budget_item_id: `BUD-${pad(seed + i, 6)}`,
+    activity_id: activityId,
+    budget_type: "actual",
+    category: item.category,
+    item_name: item.itemName,
+    calculation_basis: item.calculationBasis,
+    quantity: "",
+    unit_price: "",
+    amount: String(item.amount),
+    evidence_file_url: "",
+    memo: "",
+    created_at: now,
+    updated_at: now,
+  }));
+}
+
+/**
+ * 다음 일련번호. 이미 쓴 번호 중 가장 큰 값 + 1 이다.
+ *
+ * 예전에는 "줄 수 + 1" 로 매겼다. 줄을 지운 뒤에 새로 넣으면 남아 있는 줄과
+ * 같은 번호가 나온다. 사진 번호가 겹치면 한 활동에서 사진을 지울 때 다른
+ * 활동의 같은 번호 사진까지 지워졌다.
+ */
+function nextSeq(rows: SheetRow[], idColumn: string): number {
+  let max = 0;
+  for (const row of rows) {
+    const match = /(\d+)$/.exec(row[idColumn] ?? "");
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return Math.max(max, rows.length) + 1;
 }
 
 function buildUpdateNote(
@@ -514,9 +627,9 @@ export async function deleteActivityLog(
   const driveCleanup = await deleteImages(photoRows.map((row) => row.drive_file_id));
 
   const now = nowKstIso();
-  const auditSeed = (await readSheet("audit_logs")).length;
+  const auditSeed = nextSeq(await readSheet("audit_logs"), "audit_id");
   await appendRow("audit_logs", {
-    audit_id: `AUD-${pad(auditSeed + 1, 6)}`,
+    audit_id: `AUD-${pad(auditSeed, 6)}`,
     actor_member_id: actorMemberId,
     entity_type: "activity_log",
     entity_id: activityId,
@@ -742,12 +855,20 @@ export async function getActivityEditValues(
  *
  * members 시트가 채워지기 전이라도 활동을 기록할 수 있어야 하므로
  * 불참 처리되지 않은 신청자를 후보로 쓴다. 식별자는 application_id 다.
+ *
+ * alsoInclude 에 준 사람은 불참 처리됐어도 넣는다. 수정 화면에서 쓴다.
+ * 1회기에 왔던 사람을 나중에 명단에서 불참으로 바꾸면 목록에서 빠지는데,
+ * 그러면 수정 화면에 그 사람이 안 보이고, 저장하는 순간 1회기 출석 기록에서도
+ * 지워진다.
  */
-export async function listMemberOptions(): Promise<MemberOption[]> {
+export async function listMemberOptions(alsoInclude: string[] = []): Promise<MemberOption[]> {
   const applicants = await readSheet("applicants");
+  const keep = new Set(alsoInclude);
 
   return applicants
-    .filter((row) => row.application_status !== "불참")
+    .filter(
+      (row) => row.application_status !== "불참" || keep.has(row.application_id ?? ""),
+    )
     .map((row) => ({
       memberId: row.application_id ?? "",
       name: row.name ?? "",
@@ -830,11 +951,15 @@ function nextActivityId(
 function parseParticipants(raw: unknown) {
   if (!Array.isArray(raw)) return [];
 
+  // 같은 사람이 두 번 들어오면 출석 인원이 부풀려진다. 처음 것만 쓴다.
+  const seen = new Set<string>();
+
   return raw.flatMap((entry) => {
     if (typeof entry !== "object" || entry === null) return [];
     const record = entry as Record<string, unknown>;
     const memberId = str(record.memberId);
-    if (!memberId) return [];
+    if (!memberId || seen.has(memberId)) return [];
+    seen.add(memberId);
 
     const status = str(record.attendanceStatus);
     const attendanceStatus: AttendanceStatus = (

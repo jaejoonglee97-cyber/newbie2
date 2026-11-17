@@ -7,7 +7,8 @@ import {
   validateActivityLog,
 } from "@/lib/activity-logs";
 import { getSessionRole } from "@/lib/auth";
-import { parsePhotos, readJsonObject } from "@/lib/photo-payload";
+import { setupHint } from "@/lib/load";
+import { parsePhotos, readJsonObject, readPendingPhotoCount } from "@/lib/photo-payload";
 import { isMockMode } from "@/lib/repo";
 
 /**
@@ -76,7 +77,8 @@ export async function PUT(
    * 새로 첨부하지 않아도 기존 사진이 남아 있으면 최소 1장 조건을 만족한다.
    */
   const keptCount = existing.existingPhotos.length - removedPhotoIds.length;
-  const totalPhotoCount = keptCount + photoResult.photos.length;
+  const totalPhotoCount =
+    keptCount + photoResult.photos.length + readPendingPhotoCount(payload);
 
   // 회기 번호는 활동 ID 에 들어 있어 바꿀 수 없다. 저장된 값을 그대로 쓴다.
   const validated = await validateActivityLog(
@@ -101,6 +103,7 @@ export async function PUT(
       {
         ok: false,
         message:
+          setupHint(error) ??
           "수정 중 오류가 발생했습니다. 입력 내용을 복사해 두시고 잠시 후 다시 시도해 주세요.",
       },
       { status: 500 },

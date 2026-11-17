@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { saveActivityLog, validateActivityLog } from "@/lib/activity-logs";
 import { getSessionRole } from "@/lib/auth";
 import { setupHint } from "@/lib/load";
-import { parsePhotos, readJsonObject } from "@/lib/photo-payload";
+import { parsePhotos, readJsonObject, readPendingPhotoCount } from "@/lib/photo-payload";
 import { isMockMode } from "@/lib/repo";
 
 /** 활동일지 저장 */
@@ -41,7 +41,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, errors: { photos: photoResult.error } }, { status: 422 });
   }
 
-  const validated = await validateActivityLog(payload, photoResult.photos.length);
+  const validated = await validateActivityLog(
+    payload,
+    photoResult.photos.length + readPendingPhotoCount(payload),
+  );
   if (!validated.ok) {
     return NextResponse.json({ ok: false, errors: validated.errors }, { status: 422 });
   }

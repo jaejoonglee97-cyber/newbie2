@@ -38,10 +38,9 @@ export default async function EditActivityPage({
     redirect(`/login?returnTo=${encodeURIComponent(`/activities/${activityId}/edit`)}`);
   }
 
-  const [settings, initial, members, budget, feedback] = await Promise.all([
+  const [settings, initial, budget, feedback] = await Promise.all([
     getSettings(),
     getActivityEditValues(activityId),
-    listMemberOptions(),
     getBudgetSummary(),
     // 참고용이라 못 읽어도 수정은 막지 않는다.
     loadOr("만족도 집계", [], listFeedbackSummaries),
@@ -50,6 +49,9 @@ export default async function EditActivityPage({
   if (!initial) {
     notFound();
   }
+
+  // 이 회기에 이미 기록된 사람은 지금 명단에서 빠졌어도 목록에 넣는다.
+  const members = await listMemberOptions(initial.participants.map((p) => p.memberId));
 
   if (role !== "admin") {
     return (
@@ -100,7 +102,6 @@ export default async function EditActivityPage({
         <div className="mt-10">
           <ActivityLogForm
             members={members}
-            minimumParticipants={settings.minimumParticipants}
             activityStartDate={settings.activityStartDate}
             activityEndDate={settings.activityEndDate}
             nextSessionNumber={initial.sessionNumber}

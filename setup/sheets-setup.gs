@@ -375,7 +375,6 @@ var SETTINGS_SEED = [
   ['activity_end_date', '2026-12-31', 'date', '활동 종료일'],
 
   ['total_budget', '1000000', 'number', '총 지원금'],
-  ['minimum_participants', '7', 'number', '활동 신청 최소 참여 예정 인원'],
 
   // 문의처는 이름과 역할만 공개한다.
   // 기장·부기장 개인 휴대번호를 공개 페이지에 노출하지 않기 위해 전화번호 키를 두지 않았다.

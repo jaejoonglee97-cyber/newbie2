@@ -39,7 +39,6 @@ function seedStore(): Store {
     row("activity_start_date", "2026-08-01", "date"),
     row("activity_end_date", "2026-12-31", "date"),
     row("total_budget", "1000000", "number"),
-    row("minimum_participants", "7", "number"),
     row("contact_leader_name", "서울특별시사회복지사협회 이재중", "text"),
     row("contact_vice_leader_name", "방화11종합사회복지관 맹예림", "text"),
     row("contact_email", "client_first@sasw.or.kr", "text"),
@@ -196,6 +195,40 @@ export async function appendRow(sheetName: string, values: SheetRow): Promise<vo
   }
   table.push({ ...values });
   save(store);
+}
+
+/** 여러 줄을 한 번에 추가한다. 실제 시트 구현과 같이 모두 들어가거나 하나도 안 들어간다. */
+export async function appendRows(sheetName: string, rows: SheetRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const store = load();
+  const table = requireTable(store, sheetName);
+  table.push(...rows.map((row) => ({ ...row })));
+  save(store);
+}
+
+/** column 값이 values 중 하나이고 also 조건까지 맞는 행을 지운다. */
+export async function deleteRowsWhereIn(
+  sheetName: string,
+  column: string,
+  values: string[],
+  also: SheetRow = {},
+): Promise<number> {
+  if (values.length === 0) return 0;
+  const store = load();
+  const table = requireTable(store, sheetName);
+  const wanted = new Set(values);
+
+  const kept = table.filter(
+    (row) => !(matches(row, also) && wanted.has((row[column] ?? "").trim())),
+  );
+  const removed = table.length - kept.length;
+
+  if (removed > 0) {
+    store[sheetName] = kept;
+    save(store);
+  }
+
+  return removed;
 }
 
 /** 조건에 맞는 행의 일부 컬럼만 고친다. 고친 행 수를 돌려준다. */
